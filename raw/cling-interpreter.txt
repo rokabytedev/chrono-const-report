@@ -1,0 +1,47 @@
+=== cling 版本 ===
+1.2
+=== ABI 警告条数（0 = 干净）===
+1
+=== 冒烟：函数定义 + include 是否可用 ===
+smoke=7
+
+=== 探针 · 重复 3 次 ===
+第 1 次  NONCONST: X0=3 X1=0 X2=0  expect 1 2 3 | bump called 3 times
+CONST   : Y0=0 Y1=1 Y2=2  expect 1 2 3 | bump2 called 2 times
+第 2 次  NONCONST: X0=3 X1=0 X2=0  expect 1 2 3 | bump called 3 times
+CONST   : Y0=0 Y1=1 Y2=2  expect 1 2 3 | bump2 called 2 times
+第 3 次  NONCONST: X0=3 X1=0 X2=0  expect 1 2 3 | bump called 3 times
+CONST   : Y0=0 Y1=1 Y2=2  expect 1 2 3 | bump2 called 2 times
+
+=== chrono 顶层 ===
+AUTO : a0=1147634670872870 a1=0 dur=-1147634670872870 ns
+CONST: c0=0 c1=1147634675442110 dur=1147634675442110 ns
+
+=== 对照：函数体内应正常 ===
+fn auto =26880077 ns
+fn const=26905071 ns
+########## A/B/C/D：连续声明 vs 中间夹一条语句 × auto vs const ##########
+A  auto       : A0=1147634970368431 A1=0  diff=-1147634970368431
+C  const      : C0=0 C1=1147634975044726  diff=1147634975044726
+()
+B  auto         : B0=0 B1=0  diff=0
+()
+D  const        : D0=0 D1=0  diff=0
+
+########## E：同一个 cell 内（花括号块作用域）——最接近真实用法 ##########
+E1 auto   cell: 27254854 ns
+E2 const  cell: 26984361 ns
+E3 auto   cell: 27019159 ns
+E4 const  cell: 26956376 ns
+
+########## F：函数内（完全正常的作用域）作为对照 ##########
+F1 auto  : 26880547 ns
+F2 const : 26912978 ns
+F3 auto  : 26872179 ns
+F4 const : 26902451 ns
+
+########## G：最小复现 —— 顶层声明后紧跟一条语句 ##########
+G0  = 1147635512762097
+G1  = 0
+G0  = 1147635514579965
+G1  = 0

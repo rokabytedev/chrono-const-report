@@ -59,8 +59,13 @@ h1 .cn{font-family:var(--serif);font-weight:600;font-size:.78em;letter-spacing:-
   margin:44px 0 0;display:inline-flex;align-items:baseline;gap:14px;flex-wrap:wrap;
   border:1px solid var(--crimson);border-left-width:4px;padding:16px 22px;background:rgba(239,96,96,.055);
 }
-.verdict b{font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--crimson);text-transform:uppercase}
+.verdict b{font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--crimson);text-transform:uppercase;white-space:nowrap}
 .verdict span{font-size:18px;font-weight:600}
+.verdict.ok2{border-color:var(--green);background:rgba(132,216,148,.055);margin-top:12px}
+.verdict.ok2 b{color:var(--green)}
+.update{margin:26px 0 0;border:1px solid var(--amber);border-left-width:4px;background:rgba(255,176,46,.06);padding:18px 22px;max-width:76ch}
+.update b{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--amber);text-transform:uppercase;margin-bottom:9px}
+.update p{margin:0;font-size:16px}
 .repo{
   display:inline-flex;align-items:center;gap:11px;margin:20px 0 0;padding:12px 20px;
   border:1px solid var(--line2);border-bottom-width:1px;background:var(--ink2);
@@ -193,8 +198,9 @@ footer a{color:var(--dim)}
   <a href="#bench">05 · 600 对配对测量</a>
   <a href="#variants">06 · 写法变体</a>
   <a href="#real">07 · 真正的元凶</a>
-  <a href="#rebuttal">08 · 预判反驳</a>
-  <a href="#repro">09 · 复现方式</a>
+  <a href="#repl">08 · 解释器追加验证</a>
+  <a href="#rebuttal">09 · 预判反驳</a>
+  <a href="#repro">10 · 复现方式</a>
 </nav>
 
 <header>
@@ -208,8 +214,21 @@ footer a{color:var(--dim)}
   </p>
 
   <div class="verdict">
-    <b>裁决</b>
-    <span>论断不成立。这不是编译器 bug。</span>
+    <b>裁决 · 诊断</b>
+    <span>「常量折叠」不成立。AOT 编译下两种写法产出的机器码逐字节相同。</span>
+  </div>
+
+  <div class="verdict ok2">
+    <b>裁决 · 观察</b>
+    <span>但在 C++ 解释器里，顶层 <code>const</code> 声明确实是坏的 — 见第 08 节</span>
+  </div>
+
+  <div class="update">
+    <b>2026-08-16 更新</b>
+    <p>报告发布后，原作者指出他的运行环境是 <strong>xeus-cpp（C++ 解释器）</strong>，不是 AOT 编译的 clang。
+    这条意见成立且关键：本报告原有的证据 1–5 只覆盖 AOT 路径。
+    据此追加了第 08 节，在 x86_64 Linux 上的 Cling 解释器里复验——<strong>顶层变量声明确实是坏的，
+    而且 <code>const</code> 与非 <code>const</code> 的坏法不同</strong>。他的观察站得住，诊断仍然不对。</p>
   </div>
 
   <a class="repo" href="https://github.com/rokabytedev/chrono-const-report" target="_blank" rel="noopener">
@@ -246,10 +265,10 @@ footer a{color:var(--dim)}
 
   <div class="tw">
   <table>
-    <tr><th style="width:52px">#</th><th>命题</th><th style="width:110px">检验方式</th><th style="width:96px">结果</th></tr>
-    <tr><td class="hl">P1</td><td><code>const auto</code> 版本得到的时间是错的</td><td>行为测量</td><td class="no">未复现</td></tr>
-    <tr><td class="hl">P2</td><td>改成 <code>auto</code> 结果就正确了</td><td>行为测量 + 代码生成对照</td><td class="no">未复现</td></tr>
-    <tr><td class="hl">P3</td><td>原因是常量折叠（constant folding）</td><td>语言规则 + 编译器诊断</td><td class="no">可直接证伪</td></tr>
+    <tr><th style="width:52px">#</th><th>命题</th><th style="width:118px">AOT 编译<br>（证据 1–5）</th><th style="width:118px">C++ 解释器<br>（第 08 节）</th></tr>
+    <tr><td class="hl">P1</td><td><code>const auto</code> 版本得到的时间是错的</td><td class="no">未复现</td><td class="ok">已复现</td></tr>
+    <tr><td class="hl">P2</td><td>改成 <code>auto</code> 结果就正确了</td><td class="no">未复现</td><td class="hl">部分：坏法不同</td></tr>
+    <tr><td class="hl">P3</td><td>原因是常量折叠（constant folding）</td><td class="no">可直接证伪</td><td class="no">同样不成立</td></tr>
   </table>
   </div>
 
@@ -664,7 +683,15 @@ static const auto t1 = Clock::now();   <span class="c">// 同上</span>
 
   <p>在命名空间作用域，<code>const</code> 会给变量<strong>内部链接</strong>——放进头文件被多个 TU 包含时，
   每个 TU 各持一份自己的拷贝；而去掉 <code>const</code> 会变成重复定义的链接错误，逼你改写法。
-  实测数值本身正确（都是程序启动时刻，不是 main 开始时刻），但多 TU 场景下语义会变。</p>
+  AOT 下实测数值本身正确（都是程序启动时刻，不是 main 开始时刻），但多 TU 场景下语义会变。</p>
+
+  <div class="finding bad">
+    <div class="tag">事后修正</div>
+    <p>这一条最初被排在低位，理由是「跟函数体里的局部变量无关」。<strong>那个前提是错的。</strong>
+    在 C++ 解释器（Jupyter 的 xeus-cling / xeus-cpp）里，<em>每一条顶层语句本来就在命名空间作用域</em>，
+    所以这条不是边缘情况，而是主线。第 08 节的追加实验证实：正是这个作用域上的
+    <code>const</code> 差异导致了真实的失效。</p>
+  </div>
 
 <pre>  距 const auto 全局量:   208.21 ms
   距       auto 全局量:   208.20 ms
@@ -688,9 +715,117 @@ static const auto t1 = Clock::now();   <span class="c">// 同上</span>
 </section>
 
 <!-- ===================== 08 ===================== -->
+<section id="repl">
+<div class="wrap">
+  <div class="num">08 · 2026-08-16 追加</div>
+  <h2>C++ 解释器里的追加验证<span class="en">The Interpreter Changes Everything</span></h2>
+
+  <blockquote>
+    <p>但是我的环境是老版 intel cpu，用的是 xeus cpp runtime，实际的用法是取两个 timestamp，相减得到 duration。
+    ……但是我的程序很简单（教我儿子比较不同算法和数据结构的性能），而且我一个一个试过去，发现只有 const 有区别。</p>
+    <p>Volatile，用 <code>benchmark::DoNotOptimize</code>（本质上是用 asm 写了个 volatile）我也都试过而且排除掉了。
+    我也不可能写 <code>static const</code>。</p>
+    <cite>报告发布后原作者的回应</cite>
+  </blockquote>
+
+  <p><strong>这条意见成立，而且是整场讨论里唯一动摇了结论适用范围的信息。</strong>
+  xeus-cling / xeus-cpp 是 Jupyter 的 C++ 内核，底层是 <em>Cling 或 Clang-REPL 的增量 JIT 编译</em>——
+  它不是 <code>clang++ file.cpp</code> 这条路。证据 1–5 全部测的是 AOT，对解释器没有证明力。
+  他同时还主动排除了本报告第 07 节的真凶 A（用 <code>DoNotOptimize</code> 挡 DCE）和真凶 C（不会写 <code>static const</code>）。</p>
+
+  <h3>复验环境</h3>
+
+  <p>换到 <strong>x86_64 Linux</strong>（比原报告那台 M1 Mac 更接近他的老 Intel 环境），
+  Docker + conda-forge <code>cling 1.2</code>（clang 18.1.8，xeus-cling 的底座）。
+  逐条喂入语句，模拟 Jupyter 一行一个 cell。</p>
+
+  <h3>探针刻意绕开 chrono 和整个标准库</h3>
+
+  <p>为了不让「是不是 chrono 的问题」「是不是标准库 ABI 的问题」混进来，探针只用
+  <code>long long</code> 和 <code>printf</code>，配一个计数器函数——这样既能看到<em>变量的值</em>，
+  也能看到<em>初始化器到底跑了几次</em>：</p>
+
+<pre><span class="k">long long</span> n = 0;
+<span class="k">long long</span> bump(){ <span class="k">return</span> ++n; }
+
+<span class="k">auto</span>  X0 = bump();   <span class="c">// 顶层，非 const</span>
+<span class="k">auto</span>  X1 = bump();
+<span class="k">auto</span>  X2 = bump();
+
+<span class="k">const auto</span> Y0 = bump2();   <span class="c">// 顶层，const</span>
+<span class="k">const auto</span> Y1 = bump2();
+<span class="k">const auto</span> Y2 = bump2();</pre>
+
+  <h3>结果：两种写法都坏，而且坏法不同</h3>
+
+<pre><span class="c">3 次重复运行，结果完全一致：</span>
+
+NONCONST: X0=<span class="r">3</span> X1=<span class="r">0</span> X2=<span class="r">0</span>   期望 1 2 3 | bump  实际调用 <span class="g">3</span> 次
+CONST   : Y0=<span class="r">0</span> Y1=<span class="r">1</span> Y2=<span class="r">2</span>   期望 1 2 3 | bump2 实际调用 <span class="r">2</span> 次</pre>
+
+  <ul>
+    <li><strong>非 const</strong>：三次初始化器都跑了，但第一个变量拿到了<em>最后一次</em>的值，后两个是 0。</li>
+    <li><strong>const</strong>：整体错位一格，<code>Y0</code> 根本没被初始化——而且
+      <code>bump2</code> <strong>只被调用了 2 次</strong>，三个声明里有一个初始化器<em>从未执行</em>。
+      这是语义失败，不是内存被写坏。</li>
+  </ul>
+
+  <p>换成 chrono 是同样的形状：</p>
+
+<pre>AUTO : a0=1147436134324963  a1=<span class="r">0</span>                  dur=<span class="r">-1147436134324963</span> ns
+CONST: c0=<span class="r">0</span>                 c1=1147436139429215  dur=<span class="r">1147436139429215</span> ns</pre>
+
+  <p>拿 <code>c1 - c0</code> 当 duration，得到的就是「一个真实时间戳减去 0」，
+  也就是自 epoch 以来的全部时间。<strong>这正是他说的「返回的时间是有问题的」。</strong></p>
+
+  <h3>关键的内部对照：同一 session，换个作用域就全对</h3>
+
+  <p>这是排除 ABI、排除 chrono、把变量锁定到「作用域」的决定性一步——
+  同一个进程、同一批库、同样的类型，只是把声明挪进函数体：</p>
+
+<pre>fn auto = <span class="g">27286112</span> ns
+fn const= <span class="g">27164308</span> ns   <span class="c">// 两者一致，且数值合理</span></pre>
+
+  <p>块作用域 <code>{ … }</code> 同样正常（27.7 / 27.7 / 27.8 / 28.0 ms，auto 与 const 无差异）。
+  <strong>坏的只有顶层作用域。</strong></p>
+
+  <div class="finding bad">
+    <div class="tag">修正结论</div>
+    <p>在 C++ 解释器里，<strong>顶层变量声明确实是坏的，而且 <code>const</code> 与非 <code>const</code> 走不同路径、坏法不同</strong>。
+    机制正是第 07 节真凶 D 所说的「命名空间作用域 <code>const</code> → 内部链接」——
+    只是在 REPL 里，<em>每一条顶层语句都在命名空间作用域</em>，所以它不是边缘情况而是主线。
+    他的<strong>观察成立</strong>；他的<strong>诊断（常量折叠）依然不成立</strong>，
+    因为 <code>now()</code> 不是 <code>constexpr</code> 这件事与跑解释器还是编译器无关。</p>
+  </div>
+
+  <h3>这一节自身的边界</h3>
+
+  <ol>
+    <li><strong>ABI 警告没能消除。</strong> 这个 cling 构建始终报 libstdc++ 版本不匹配
+      （编译期 <code>__GLIBCXX__ 20240521</code>，运行时 <code>20250605</code>），把 <code>libstdcxx</code> 钉到 14.1 也没消掉。
+      但有三条理由认为它不是元凶：探针不碰任何 C++ 标准库类型；失效是确定性且有结构的（连续 3 次完全一致），
+      不是随机损坏；<em>最重要的是</em>同一 session 里函数作用域完全正常——ABI 坏的话不可能只坏顶层。</li>
+    <li><strong>Cling ≠ Clang-REPL。</strong> 这里测的是 Cling（xeus-cling 的底座）。
+      他原话说的是「xeus cpp runtime」，措辞上更像 xeus-cpp（基于 Clang-REPL / CppInterOp），
+      那是相邻但不同的实现。</li>
+    <li><strong>极性与他相反。</strong> 这里非 const 坏得更明显，他观察到的是 const 坏。
+      考虑到失效模式是<em>位置相关</em>的，这反而能解释他的经历：一个一个试的时候，
+      改动 <code>const</code> 恰好挪动了声明的相对位置，翻转了哪个变量中招。</li>
+    <li><strong>仍未跑到原始代码。</strong> 结论关于机制，不关于他那段具体代码。</li>
+  </ol>
+
+  <div class="note">
+    <p>证据 1–5 的结论不受影响，依然成立——只是适用范围明确限定为 <strong>AOT 编译</strong>。
+    这一节的方向由原作者提供的信息拨正，实验脚本见
+    <a href="src/round4.sh">src/round4.sh</a> 与 <a href="src/round6.sh">src/round6.sh</a>。</p>
+  </div>
+</div>
+</section>
+
+<!-- ===================== 09 ===================== -->
 <section id="rebuttal">
 <div class="wrap">
-  <div class="num">08</div>
+  <div class="num">09</div>
   <h2>预判反驳<span class="en">Anticipated Objections</span></h2>
 
   <details open>
@@ -762,18 +897,21 @@ static const auto t1 = Clock::now();   <span class="c">// 同上</span>
     <div class="answer">
       <p>补了一组 <code>-arch x86_64</code> 的 Rosetta 交叉验证（<code>file</code> 确认产物是
       <code>Mach-O 64-bit executable x86_64</code>），结果同样无差异，chrono 与独立参照物吻合。</p>
-      <p>这不等同于原生 Intel 硬件，是这份报告的一个真实边界。但第 04 节的证伪与架构无关。</p>
+      <p>第 08 节的解释器实验则是在<strong>原生 x86_64 Linux</strong> 上跑的，不经 Rosetta。</p>
+      <p>仍未覆盖的是原生 Intel Mac 硬件，这是一个真实边界。但第 04 节的证伪与架构无关。</p>
     </div>
   </details>
 
   <details>
     <summary>「你终究没跑我的那段代码。」</summary>
     <div class="answer">
-      <p><strong>这条成立</strong>，是这份报告唯一真实的开口。我复现的是论断所描述的形状，不是原始代码本身。</p>
-      <p>但即便原始代码里真的存在一个 bug，本报告已经独立证明了：<strong>它的原因不会是常量折叠</strong>（第 04 节），
-      <strong>也不会是 <code>const</code> 改变了代码生成</strong>（第 02、03 节）。第 07 节列了五个更可能的方向，
-      其中 C（<code>static const auto</code>）能同时解释「加 const 出错」和「去掉 const 就好」这两个现象。</p>
-      <p>把那段代码贴出来，我在同一台机器上照跑，有结果就更新这份报告。</p>
+      <p><strong>这条成立</strong>，是这份报告唯一真实的开口，至今仍然成立。</p>
+      <p><strong>而且它已经兑现过一次。</strong>报告发布后，原作者指出运行环境是 xeus-cpp（C++ 解释器）而非 AOT clang——
+      这条信息把方向整个拨正了。据此追加的第 08 节在 Cling 里复现出了真实的顶层声明失效，
+      并且推翻了本报告最初对「真凶 D」的低优先级判断。<strong>他的观察站得住。</strong></p>
+      <p>仍然不成立的只有诊断本身：<code>now()</code> 不是 <code>constexpr</code>，
+      这与跑解释器还是编译器无关，所以「常量折叠」在任何一条路径上都不是原因。</p>
+      <p>把那段代码贴出来，我照跑，有结果继续更新。</p>
     </div>
   </details>
 </div>
@@ -782,7 +920,7 @@ static const auto t1 = Clock::now();   <span class="c">// 同上</span>
 <!-- ===================== 09 ===================== -->
 <section id="repro">
 <div class="wrap">
-  <div class="num">09</div>
+  <div class="num">10</div>
   <h2>复现方式<span class="en">Reproduce It Yourself</span></h2>
 
   <p>最快的一条——证伪常量折叠假说，10 秒，不需要跑任何 benchmark：</p>
@@ -830,8 +968,12 @@ constexpr auto t = std::chrono::steady_clock::now();' | clang++ -std=c++23 -x c+
     <a href="src/run2.sh">run2.sh</a>
     <a href="src/run3.sh">run3.sh</a>
     <a href="src/run4.sh">run4.sh</a>
+    <a href="src/round2.sh">round2.sh · 解释器作用域隔离</a>
+    <a href="src/round4.sh">round4.sh · 解释器 const 探针</a>
+    <a href="src/round6.sh">round6.sh · ABI 匹配环境复验</a>
     <a href="raw/full-matrix.txt">原始输出 · 12 组编译配置全矩阵</a>
     <a href="raw/variants-and-toolchains.txt">原始输出 · 变体与工具链对照</a>
+    <a href="raw/cling-interpreter.txt">原始输出 · Cling 解释器</a>
   </div>
 
   <div class="note">
@@ -844,11 +986,12 @@ constexpr auto t = std::chrono::steady_clock::now();' | clang++ -std=c++23 -x c+
 <footer>
 <div class="wrap">
   <p style="max-width:74ch">
-    <strong>总结：</strong>三个命题里，P3（常量折叠）可以用一行代码直接证伪；
-    P1 和 P2 在 12 组编译配置、三套编译器、两种 CPU 架构、816 对配对测量下均未复现，
-    且编译器对两种写法产出的机器码与 LLVM IR <em>逐字节相同</em>。
-    「测出来的 performance 不对」很可能是真的，但原因在别处——最可能是死代码消除、冷启动，
-    或者 <code>static const auto</code>。
+    <strong>总结：</strong>在 <strong>AOT 编译</strong>下，P1 和 P2 在 12 组编译配置、三套编译器、
+    两种 CPU 架构、816 对配对测量下均未复现，且两种写法产出的机器码与 LLVM IR <em>逐字节相同</em>。
+    但在 <strong>C++ 解释器</strong>下（第 08 节），顶层变量声明确实是坏的，
+    <code>const</code> 与非 <code>const</code> 走不同路径、坏法不同——<strong>原作者的观察成立</strong>。
+    唯一始终不成立的是诊断：<code>now()</code> 不是 <code>constexpr</code>，
+    常量折叠在任何一条路径上都不可能是原因。
   </p>
   <p style="margin-top:26px;font-family:var(--mono);font-size:12px;color:var(--dim2)">
     实验于 2026-08-16 在 MacBookPro18,2 / Apple M1 Max / macOS 26.5.2 上执行 ·
