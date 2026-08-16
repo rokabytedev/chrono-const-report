@@ -1,0 +1,803 @@
+############ 工具链 ############
+Apple clang version 17.0.0 (clang-1700.6.4.2)
+Target: arm64-apple-darwin25.5.0
+Thread model: posix
+InstalledDir: /Applications/Xcode-26.3.0.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin
+
+################################################################
+############ 优化级别 -O0 ############
+################################################################
+=================== -std=c++17 -O0 ===================
+=== 实验 1：now() 返回值本身 ===
+
+--- system_clock (period = 1/1000000 s, is_steady=0) ---
+  const c1 = 1786911601291590
+  auto  a1 = 1786911601291590   (a1-c1 = 0)
+  const c2 = 1786911601291591   (c2-a1 = 1)
+  auto  a2 = 1786911601291591   (a2-c2 = 0)
+  const c3 = 1786911601291591   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- steady_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740625937349375
+  auto  a1 = 2740625937349500   (a1-c1 = 125)
+  const c2 = 2740625937349583   (c2-a1 = 83)
+  auto  a2 = 2740625937349625   (a2-c2 = 42)
+  const c3 = 2740625937349708   (c3-a2 = 83)
+  单调递增(每步>=0)? YES
+
+--- high_resolution_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740625937356416
+  auto  a1 = 2740625937356458   (a1-c1 = 42)
+  const c2 = 2740625937356541   (c2-a1 = 83)
+  auto  a2 = 2740625937356625   (a2-c2 = 84)
+  const c3 = 2740625937356666   (c3-a2 = 41)
+  单调递增(每步>=0)? YES
+
+high_resolution_clock is steady_clock ? YES
+high_resolution_clock is system_clock ? NO
+
+=== 实验 2a：sleep 100ms（已知时长）===
+system_clock            auto= 106.1550 ms   const auto= 109.4580 ms   (期望 ~100 ms)
+steady_clock            auto= 104.6733 ms   const auto= 109.9925 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 101.9526 ms   const auto= 105.2143 ms   (期望 ~100 ms)
+system_clock            auto= 100.5490 ms   const auto= 105.2970 ms   (期望 ~100 ms)
+steady_clock            auto= 107.2947 ms   const auto= 102.1358 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 110.0325 ms   const auto= 100.4571 ms   (期望 ~100 ms)
+system_clock            auto= 102.6160 ms   const auto= 107.0450 ms   (期望 ~100 ms)
+steady_clock            auto= 100.8124 ms   const auto= 103.0123 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 100.7823 ms   const auto= 102.0599 ms   (期望 ~100 ms)
+
+=== 实验 2b：计算负载 + clock_gettime 独立参照 ===
+system_clock            auto=  34.7100 ms (ref   34.7100)   const auto=  14.0780 ms (ref   14.0780)
+steady_clock            auto=  12.8103 ms (ref   12.8120)   const auto=  15.0081 ms (ref   15.0090)
+high_resolution_clock   auto=  12.8955 ms (ref   12.8960)   const auto=  12.7965 ms (ref   12.7970)
+
+system_clock            auto=  12.5680 ms (ref   12.5690)   const auto=  12.7480 ms (ref   12.7500)
+steady_clock            auto=  12.8144 ms (ref   12.8150)   const auto=  12.5918 ms (ref   12.5920)
+high_resolution_clock   auto=  12.8987 ms (ref   12.8980)   const auto=  12.6149 ms (ref   12.6160)
+
+system_clock            auto=  12.5530 ms (ref   12.5530)   const auto=  12.5900 ms (ref   12.5900)
+steady_clock            auto=  12.9295 ms (ref   12.9300)   const auto=  12.8592 ms (ref   12.8600)
+high_resolution_clock   auto=  12.8870 ms (ref   12.8880)   const auto=  12.9117 ms (ref   12.9140)
+
+
+=== 实验 4：结果未被使用的负载（DCE 陷阱）===
+auto       + 丢弃结果 :    52.5577 ms
+const auto + 丢弃结果 :    34.2525 ms
+auto       + volatile :    33.6195 ms
+const auto + volatile :    33.7662 ms
+
+=================== -std=c++20 -O0 ===================
+=== 实验 1：now() 返回值本身 ===
+
+--- system_clock (period = 1/1000000 s, is_steady=0) ---
+  const c1 = 1786911605488707
+  auto  a1 = 1786911605488707   (a1-c1 = 0)
+  const c2 = 1786911605488707   (c2-a1 = 0)
+  auto  a2 = 1786911605488707   (a2-c2 = 0)
+  const c3 = 1786911605488707   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- steady_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740630134446833
+  auto  a1 = 2740630134447000   (a1-c1 = 167)
+  const c2 = 2740630134447083   (c2-a1 = 83)
+  auto  a2 = 2740630134447125   (a2-c2 = 42)
+  const c3 = 2740630134447208   (c3-a2 = 83)
+  单调递增(每步>=0)? YES
+
+--- high_resolution_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740630134453625
+  auto  a1 = 2740630134453708   (a1-c1 = 83)
+  const c2 = 2740630134453791   (c2-a1 = 83)
+  auto  a2 = 2740630134453833   (a2-c2 = 42)
+  const c3 = 2740630134453916   (c3-a2 = 83)
+  单调递增(每步>=0)? YES
+
+high_resolution_clock is steady_clock ? YES
+high_resolution_clock is system_clock ? NO
+
+=== 实验 2a：sleep 100ms（已知时长）===
+system_clock            auto= 110.0400 ms   const auto= 102.2430 ms   (期望 ~100 ms)
+steady_clock            auto= 106.7696 ms   const auto= 104.8855 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 101.7493 ms   const auto= 100.9809 ms   (期望 ~100 ms)
+system_clock            auto= 109.4760 ms   const auto= 107.2520 ms   (期望 ~100 ms)
+steady_clock            auto= 106.4590 ms   const auto= 108.2514 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 100.4280 ms   const auto= 107.5280 ms   (期望 ~100 ms)
+system_clock            auto= 109.6540 ms   const auto= 104.2330 ms   (期望 ~100 ms)
+steady_clock            auto= 101.4646 ms   const auto= 100.5772 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 103.1760 ms   const auto= 109.7791 ms   (期望 ~100 ms)
+
+=== 实验 2b：计算负载 + clock_gettime 独立参照 ===
+system_clock            auto=  38.5490 ms (ref   38.5490)   const auto=  12.7250 ms (ref   12.7260)
+steady_clock            auto=  12.5507 ms (ref   12.5540)   const auto=  12.5508 ms (ref   12.5510)
+high_resolution_clock   auto=  12.9316 ms (ref   12.9320)   const auto=  12.4377 ms (ref   12.4380)
+
+system_clock            auto=  12.5280 ms (ref   12.5280)   const auto=  12.4310 ms (ref   12.4310)
+steady_clock            auto=  12.6179 ms (ref   12.6180)   const auto=  12.7182 ms (ref   12.7180)
+high_resolution_clock   auto=  12.9357 ms (ref   12.9360)   const auto=  12.5432 ms (ref   12.5430)
+
+system_clock            auto=  12.8770 ms (ref   12.8770)   const auto=  12.5470 ms (ref   12.5470)
+steady_clock            auto=  12.7317 ms (ref   12.7320)   const auto=  12.5701 ms (ref   12.5700)
+high_resolution_clock   auto=  12.6575 ms (ref   12.6580)   const auto=  12.5217 ms (ref   12.5220)
+
+
+=== 实验 4：结果未被使用的负载（DCE 陷阱）===
+auto       + 丢弃结果 :    52.6174 ms
+const auto + 丢弃结果 :    36.4693 ms
+auto       + volatile :    33.4415 ms
+const auto + volatile :    33.9162 ms
+
+=================== -std=c++23 -O0 ===================
+=== 实验 1：now() 返回值本身 ===
+
+--- system_clock (period = 1/1000000 s, is_steady=0) ---
+  const c1 = 1786911609871548
+  auto  a1 = 1786911609871548   (a1-c1 = 0)
+  const c2 = 1786911609871549   (c2-a1 = 1)
+  auto  a2 = 1786911609871549   (a2-c2 = 0)
+  const c3 = 1786911609871549   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- steady_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740634517268916
+  auto  a1 = 2740634517269041   (a1-c1 = 125)
+  const c2 = 2740634517269125   (c2-a1 = 84)
+  auto  a2 = 2740634517269166   (a2-c2 = 41)
+  const c3 = 2740634517269250   (c3-a2 = 84)
+  单调递增(每步>=0)? YES
+
+--- high_resolution_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740634517276041
+  auto  a1 = 2740634517276083   (a1-c1 = 42)
+  const c2 = 2740634517276166   (c2-a1 = 83)
+  auto  a2 = 2740634517276250   (a2-c2 = 84)
+  const c3 = 2740634517276291   (c3-a2 = 41)
+  单调递增(每步>=0)? YES
+
+high_resolution_clock is steady_clock ? YES
+high_resolution_clock is system_clock ? NO
+
+=== 实验 2a：sleep 100ms（已知时长）===
+system_clock            auto= 105.0340 ms   const auto= 107.4110 ms   (期望 ~100 ms)
+steady_clock            auto= 107.2138 ms   const auto= 101.1916 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 107.2528 ms   const auto= 107.2488 ms   (期望 ~100 ms)
+system_clock            auto= 107.9630 ms   const auto= 110.0330 ms   (期望 ~100 ms)
+steady_clock            auto= 108.4678 ms   const auto= 109.7064 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 105.5359 ms   const auto= 100.6548 ms   (期望 ~100 ms)
+system_clock            auto= 100.6430 ms   const auto= 101.4490 ms   (期望 ~100 ms)
+steady_clock            auto= 100.8059 ms   const auto= 110.0351 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 101.1492 ms   const auto= 107.8677 ms   (期望 ~100 ms)
+
+=== 实验 2b：计算负载 + clock_gettime 独立参照 ===
+system_clock            auto=  34.6590 ms (ref   34.6590)   const auto=  12.8660 ms (ref   12.8680)
+steady_clock            auto=  13.6920 ms (ref   13.6930)   const auto=  13.0070 ms (ref   13.0070)
+high_resolution_clock   auto=  12.8127 ms (ref   12.8140)   const auto=  12.9596 ms (ref   12.9600)
+
+system_clock            auto=  12.8250 ms (ref   12.8250)   const auto=  12.8670 ms (ref   12.8670)
+steady_clock            auto=  12.6219 ms (ref   12.6220)   const auto=  12.7467 ms (ref   12.7470)
+high_resolution_clock   auto=  12.7295 ms (ref   12.7300)   const auto=  12.6997 ms (ref   12.7020)
+
+system_clock            auto=  12.9150 ms (ref   12.9150)   const auto=  12.7940 ms (ref   12.7970)
+steady_clock            auto=  12.8105 ms (ref   12.8110)   const auto=  12.7017 ms (ref   12.7020)
+high_resolution_clock   auto=  12.6819 ms (ref   12.6820)   const auto=  12.5270 ms (ref   12.5280)
+
+
+=== 实验 4：结果未被使用的负载（DCE 陷阱）===
+auto       + 丢弃结果 :    60.5390 ms
+const auto + 丢弃结果 :    34.4702 ms
+auto       + volatile :    33.3113 ms
+const auto + volatile :    33.0835 ms
+
+################################################################
+############ 优化级别 -O1 ############
+################################################################
+=================== -std=c++17 -O1 ===================
+=== 实验 1：now() 返回值本身 ===
+
+--- system_clock (period = 1/1000000 s, is_steady=0) ---
+  const c1 = 1786911614029630
+  auto  a1 = 1786911614029630   (a1-c1 = 0)
+  const c2 = 1786911614029630   (c2-a1 = 0)
+  auto  a2 = 1786911614029630   (a2-c2 = 0)
+  const c3 = 1786911614029630   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- steady_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740638675330583
+  auto  a1 = 2740638675330666   (a1-c1 = 83)
+  const c2 = 2740638675330750   (c2-a1 = 84)
+  auto  a2 = 2740638675330791   (a2-c2 = 41)
+  const c3 = 2740638675330875   (c3-a2 = 84)
+  单调递增(每步>=0)? YES
+
+--- high_resolution_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740638675336291
+  auto  a1 = 2740638675336375   (a1-c1 = 84)
+  const c2 = 2740638675336416   (c2-a1 = 41)
+  auto  a2 = 2740638675336500   (a2-c2 = 84)
+  const c3 = 2740638675336541   (c3-a2 = 41)
+  单调递增(每步>=0)? YES
+
+high_resolution_clock is steady_clock ? YES
+high_resolution_clock is system_clock ? NO
+
+=== 实验 2a：sleep 100ms（已知时长）===
+system_clock            auto= 108.7800 ms   const auto= 110.0310 ms   (期望 ~100 ms)
+steady_clock            auto= 101.7125 ms   const auto= 110.0369 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 108.9880 ms   const auto= 105.1224 ms   (期望 ~100 ms)
+system_clock            auto= 104.2020 ms   const auto= 102.1250 ms   (期望 ~100 ms)
+steady_clock            auto= 100.3991 ms   const auto= 100.2601 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 108.0572 ms   const auto= 100.4502 ms   (期望 ~100 ms)
+system_clock            auto= 108.4880 ms   const auto= 102.9190 ms   (期望 ~100 ms)
+steady_clock            auto= 102.7051 ms   const auto= 104.2577 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 108.7297 ms   const auto= 102.2512 ms   (期望 ~100 ms)
+
+=== 实验 2b：计算负载 + clock_gettime 独立参照 ===
+system_clock            auto=  31.9880 ms (ref   31.9880)   const auto=  13.5110 ms (ref   13.5120)
+steady_clock            auto=  12.8709 ms (ref   12.8710)   const auto=  12.5505 ms (ref   12.5510)
+high_resolution_clock   auto=  11.1136 ms (ref   11.1140)   const auto=  11.2433 ms (ref   11.2430)
+
+system_clock            auto=  10.8220 ms (ref   10.8230)   const auto=  10.6100 ms (ref   10.6100)
+steady_clock            auto=  11.1529 ms (ref   11.1540)   const auto=  10.9350 ms (ref   10.9350)
+high_resolution_clock   auto=  10.7192 ms (ref   10.7200)   const auto=  10.6942 ms (ref   10.6940)
+
+system_clock            auto=  10.6150 ms (ref   10.6150)   const auto=  10.8490 ms (ref   10.8490)
+steady_clock            auto=  10.7595 ms (ref   10.7600)   const auto=  10.6807 ms (ref   10.6800)
+high_resolution_clock   auto=  10.6590 ms (ref   10.6590)   const auto=  10.7240 ms (ref   10.7250)
+
+
+=== 实验 4：结果未被使用的负载（DCE 陷阱）===
+auto       + 丢弃结果 :     0.0000 ms
+const auto + 丢弃结果 :     0.0000 ms
+auto       + volatile :    44.9977 ms
+const auto + volatile :    28.8288 ms
+
+=================== -std=c++20 -O1 ===================
+=== 实验 1：now() 返回值本身 ===
+
+--- system_clock (period = 1/1000000 s, is_steady=0) ---
+  const c1 = 1786911618016614
+  auto  a1 = 1786911618016614   (a1-c1 = 0)
+  const c2 = 1786911618016614   (c2-a1 = 0)
+  auto  a2 = 1786911618016614   (a2-c2 = 0)
+  const c3 = 1786911618016614   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- steady_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740642662293875
+  auto  a1 = 2740642662293916   (a1-c1 = 41)
+  const c2 = 2740642662293958   (c2-a1 = 42)
+  auto  a2 = 2740642662294000   (a2-c2 = 42)
+  const c3 = 2740642662294000   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- high_resolution_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740642662296541
+  auto  a1 = 2740642662296583   (a1-c1 = 42)
+  const c2 = 2740642662296583   (c2-a1 = 0)
+  auto  a2 = 2740642662296625   (a2-c2 = 42)
+  const c3 = 2740642662296666   (c3-a2 = 41)
+  单调递增(每步>=0)? YES
+
+high_resolution_clock is steady_clock ? YES
+high_resolution_clock is system_clock ? NO
+
+=== 实验 2a：sleep 100ms（已知时长）===
+system_clock            auto= 103.2780 ms   const auto= 109.3430 ms   (期望 ~100 ms)
+steady_clock            auto= 105.1837 ms   const auto= 110.0283 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 108.9669 ms   const auto= 104.0268 ms   (期望 ~100 ms)
+system_clock            auto= 103.8920 ms   const auto= 110.0350 ms   (期望 ~100 ms)
+steady_clock            auto= 105.8856 ms   const auto= 100.8479 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 107.1333 ms   const auto= 109.1876 ms   (期望 ~100 ms)
+system_clock            auto= 106.8750 ms   const auto= 108.0830 ms   (期望 ~100 ms)
+steady_clock            auto= 109.7878 ms   const auto= 106.9242 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 108.7580 ms   const auto= 100.6617 ms   (期望 ~100 ms)
+
+=== 实验 2b：计算负载 + clock_gettime 独立参照 ===
+system_clock            auto=  33.2860 ms (ref   33.2860)   const auto=  12.9250 ms (ref   12.9250)
+steady_clock            auto=  12.0096 ms (ref   12.0100)   const auto=  12.2484 ms (ref   12.2480)
+high_resolution_clock   auto=  12.4797 ms (ref   12.4800)   const auto=  11.1055 ms (ref   11.1050)
+
+system_clock            auto=  11.0100 ms (ref   11.0100)   const auto=  10.9780 ms (ref   10.9790)
+steady_clock            auto=  11.0271 ms (ref   11.0290)   const auto=  10.7652 ms (ref   10.7660)
+high_resolution_clock   auto=  10.8044 ms (ref   10.8050)   const auto=  10.8700 ms (ref   10.8700)
+
+system_clock            auto=  10.9200 ms (ref   10.9210)   const auto=  10.9830 ms (ref   10.9830)
+steady_clock            auto=  10.8968 ms (ref   10.8970)   const auto=  10.8997 ms (ref   10.9000)
+high_resolution_clock   auto=  10.6328 ms (ref   10.6330)   const auto=  10.6721 ms (ref   10.6720)
+
+
+=== 实验 4：结果未被使用的负载（DCE 陷阱）===
+auto       + 丢弃结果 :     0.0000 ms
+const auto + 丢弃结果 :     0.0000 ms
+auto       + volatile :    31.6536 ms
+const auto + volatile :    29.8086 ms
+
+=================== -std=c++23 -O1 ===================
+=== 实验 1：now() 返回值本身 ===
+
+--- system_clock (period = 1/1000000 s, is_steady=0) ---
+  const c1 = 1786911622080165
+  auto  a1 = 1786911622080165   (a1-c1 = 0)
+  const c2 = 1786911622080165   (c2-a1 = 0)
+  auto  a2 = 1786911622080165   (a2-c2 = 0)
+  const c3 = 1786911622080165   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- steady_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740646725824500
+  auto  a1 = 2740646725824583   (a1-c1 = 83)
+  const c2 = 2740646725824625   (c2-a1 = 42)
+  auto  a2 = 2740646725824666   (a2-c2 = 41)
+  const c3 = 2740646725824708   (c3-a2 = 42)
+  单调递增(每步>=0)? YES
+
+--- high_resolution_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740646725828125
+  auto  a1 = 2740646725828125   (a1-c1 = 0)
+  const c2 = 2740646725828166   (c2-a1 = 41)
+  auto  a2 = 2740646725828208   (a2-c2 = 42)
+  const c3 = 2740646725828250   (c3-a2 = 42)
+  单调递增(每步>=0)? YES
+
+high_resolution_clock is steady_clock ? YES
+high_resolution_clock is system_clock ? NO
+
+=== 实验 2a：sleep 100ms（已知时长）===
+system_clock            auto= 110.0350 ms   const auto= 107.8450 ms   (期望 ~100 ms)
+steady_clock            auto= 106.3701 ms   const auto= 108.5278 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 107.4837 ms   const auto= 103.1176 ms   (期望 ~100 ms)
+system_clock            auto= 100.6850 ms   const auto= 110.0270 ms   (期望 ~100 ms)
+steady_clock            auto= 100.6648 ms   const auto= 110.0361 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 104.2862 ms   const auto= 107.5787 ms   (期望 ~100 ms)
+system_clock            auto= 109.5160 ms   const auto= 109.6260 ms   (期望 ~100 ms)
+steady_clock            auto= 107.5440 ms   const auto= 108.6460 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 108.9284 ms   const auto= 106.4381 ms   (期望 ~100 ms)
+
+=== 实验 2b：计算负载 + clock_gettime 独立参照 ===
+system_clock            auto=  42.8050 ms (ref   42.8050)   const auto=  16.0920 ms (ref   16.0930)
+steady_clock            auto=  10.9464 ms (ref   10.9470)   const auto=  10.9428 ms (ref   10.9430)
+high_resolution_clock   auto=  11.2012 ms (ref   11.2010)   const auto=  10.8804 ms (ref   10.8800)
+
+system_clock            auto=  10.8570 ms (ref   10.8570)   const auto=  10.6970 ms (ref   10.6970)
+steady_clock            auto=  10.9470 ms (ref   10.9480)   const auto=  10.8117 ms (ref   10.8120)
+high_resolution_clock   auto=  10.7818 ms (ref   10.7850)   const auto=  10.9322 ms (ref   10.9340)
+
+system_clock            auto=  10.9290 ms (ref   10.9290)   const auto=  10.9620 ms (ref   10.9630)
+steady_clock            auto=  11.1252 ms (ref   11.1260)   const auto=  10.8843 ms (ref   10.8860)
+high_resolution_clock   auto=  10.7464 ms (ref   10.7480)   const auto=  10.7894 ms (ref   10.7900)
+
+
+=== 实验 4：结果未被使用的负载（DCE 陷阱）===
+auto       + 丢弃结果 :     0.0001 ms
+const auto + 丢弃结果 :     0.0000 ms
+auto       + volatile :    31.2404 ms
+const auto + volatile :    30.3012 ms
+
+################################################################
+############ 优化级别 -O2 ############
+################################################################
+=================== -std=c++17 -O2 ===================
+=== 实验 1：now() 返回值本身 ===
+
+--- system_clock (period = 1/1000000 s, is_steady=0) ---
+  const c1 = 1786911625929290
+  auto  a1 = 1786911625929290   (a1-c1 = 0)
+  const c2 = 1786911625929290   (c2-a1 = 0)
+  auto  a2 = 1786911625929290   (a2-c2 = 0)
+  const c3 = 1786911625929290   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- steady_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740650574929166
+  auto  a1 = 2740650574929166   (a1-c1 = 0)
+  const c2 = 2740650574929208   (c2-a1 = 42)
+  auto  a2 = 2740650574929208   (a2-c2 = 0)
+  const c3 = 2740650574929208   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- high_resolution_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740650574930208
+  auto  a1 = 2740650574930208   (a1-c1 = 0)
+  const c2 = 2740650574930208   (c2-a1 = 0)
+  auto  a2 = 2740650574930250   (a2-c2 = 42)
+  const c3 = 2740650574930250   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+high_resolution_clock is steady_clock ? YES
+high_resolution_clock is system_clock ? NO
+
+=== 实验 2a：sleep 100ms（已知时长）===
+system_clock            auto= 110.0690 ms   const auto= 105.8960 ms   (期望 ~100 ms)
+steady_clock            auto= 101.0550 ms   const auto= 101.9184 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 103.8826 ms   const auto= 105.4840 ms   (期望 ~100 ms)
+system_clock            auto= 108.2760 ms   const auto= 105.2080 ms   (期望 ~100 ms)
+steady_clock            auto= 106.0570 ms   const auto= 108.3722 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 111.7904 ms   const auto= 110.5577 ms   (期望 ~100 ms)
+system_clock            auto= 108.8690 ms   const auto= 107.9010 ms   (期望 ~100 ms)
+steady_clock            auto= 109.2348 ms   const auto= 104.7412 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 101.6180 ms   const auto= 109.5641 ms   (期望 ~100 ms)
+
+=== 实验 2b：计算负载 + clock_gettime 独立参照 ===
+system_clock            auto=  29.3850 ms (ref   29.3850)   const auto=  11.0510 ms (ref   11.0510)
+steady_clock            auto=  10.6739 ms (ref   10.6750)   const auto=  10.9603 ms (ref   10.9610)
+high_resolution_clock   auto=  11.0325 ms (ref   11.0320)   const auto=  10.9128 ms (ref   10.9130)
+
+system_clock            auto=  10.9080 ms (ref   10.9080)   const auto=  10.8470 ms (ref   10.8470)
+steady_clock            auto=  11.0062 ms (ref   11.0070)   const auto=  10.4513 ms (ref   10.4520)
+high_resolution_clock   auto=  10.7333 ms (ref   10.7340)   const auto=  10.8817 ms (ref   10.8820)
+
+system_clock            auto=  10.4990 ms (ref   10.5000)   const auto=  10.7130 ms (ref   10.7140)
+steady_clock            auto=  10.9001 ms (ref   10.9010)   const auto=  10.8547 ms (ref   10.8550)
+high_resolution_clock   auto=  10.9167 ms (ref   10.9170)   const auto=  10.8654 ms (ref   10.8660)
+
+
+=== 实验 4：结果未被使用的负载（DCE 陷阱）===
+auto       + 丢弃结果 :     0.0001 ms
+const auto + 丢弃结果 :     0.0000 ms
+auto       + volatile :    48.2780 ms
+const auto + volatile :    28.3535 ms
+
+=================== -std=c++20 -O2 ===================
+=== 实验 1：now() 返回值本身 ===
+
+--- system_clock (period = 1/1000000 s, is_steady=0) ---
+  const c1 = 1786911629952295
+  auto  a1 = 1786911629952295   (a1-c1 = 0)
+  const c2 = 1786911629952295   (c2-a1 = 0)
+  auto  a2 = 1786911629952295   (a2-c2 = 0)
+  const c3 = 1786911629952295   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- steady_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740654597918708
+  auto  a1 = 2740654597918791   (a1-c1 = 83)
+  const c2 = 2740654597918833   (c2-a1 = 42)
+  auto  a2 = 2740654597918875   (a2-c2 = 42)
+  const c3 = 2740654597918875   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- high_resolution_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740654597921583
+  auto  a1 = 2740654597921625   (a1-c1 = 42)
+  const c2 = 2740654597921625   (c2-a1 = 0)
+  auto  a2 = 2740654597921666   (a2-c2 = 41)
+  const c3 = 2740654597921708   (c3-a2 = 42)
+  单调递增(每步>=0)? YES
+
+high_resolution_clock is steady_clock ? YES
+high_resolution_clock is system_clock ? NO
+
+=== 实验 2a：sleep 100ms（已知时长）===
+system_clock            auto= 102.5380 ms   const auto= 109.4340 ms   (期望 ~100 ms)
+steady_clock            auto= 104.7916 ms   const auto= 106.1904 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 108.2730 ms   const auto= 106.8053 ms   (期望 ~100 ms)
+system_clock            auto= 103.8230 ms   const auto= 103.0840 ms   (期望 ~100 ms)
+steady_clock            auto= 110.0004 ms   const auto= 107.8155 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 104.0655 ms   const auto= 110.0367 ms   (期望 ~100 ms)
+system_clock            auto= 109.3460 ms   const auto= 100.8830 ms   (期望 ~100 ms)
+steady_clock            auto= 110.0329 ms   const auto= 100.4312 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 102.2708 ms   const auto= 102.7354 ms   (期望 ~100 ms)
+
+=== 实验 2b：计算负载 + clock_gettime 独立参照 ===
+system_clock            auto=  31.0760 ms (ref   31.0760)   const auto=  10.6280 ms (ref   10.6290)
+steady_clock            auto=  10.7902 ms (ref   10.7910)   const auto=  12.5203 ms (ref   12.5200)
+high_resolution_clock   auto=  11.3500 ms (ref   11.3500)   const auto=  11.1904 ms (ref   11.1910)
+
+system_clock            auto=  10.5890 ms (ref   10.5890)   const auto=  10.3780 ms (ref   10.3780)
+steady_clock            auto=  10.6749 ms (ref   10.6750)   const auto=  10.3183 ms (ref   10.3180)
+high_resolution_clock   auto=  10.5524 ms (ref   10.5530)   const auto=  10.4730 ms (ref   10.4750)
+
+system_clock            auto=  10.4220 ms (ref   10.4250)   const auto=  10.6120 ms (ref   10.6140)
+steady_clock            auto=  10.5916 ms (ref   10.5930)   const auto=  10.5471 ms (ref   10.5470)
+high_resolution_clock   auto=  10.3804 ms (ref   10.3800)   const auto=  10.2641 ms (ref   10.2640)
+
+
+=== 实验 4：结果未被使用的负载（DCE 陷阱）===
+auto       + 丢弃结果 :     0.0000 ms
+const auto + 丢弃结果 :     0.0000 ms
+auto       + volatile :    27.7323 ms
+const auto + volatile :    28.0530 ms
+
+=================== -std=c++23 -O2 ===================
+=== 实验 1：now() 返回值本身 ===
+
+--- system_clock (period = 1/1000000 s, is_steady=0) ---
+  const c1 = 1786911634101419
+  auto  a1 = 1786911634101419   (a1-c1 = 0)
+  const c2 = 1786911634101419   (c2-a1 = 0)
+  auto  a2 = 1786911634101419   (a2-c2 = 0)
+  const c3 = 1786911634101419   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- steady_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740658747023875
+  auto  a1 = 2740658747023916   (a1-c1 = 41)
+  const c2 = 2740658747023958   (c2-a1 = 42)
+  auto  a2 = 2740658747024000   (a2-c2 = 42)
+  const c3 = 2740658747024000   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- high_resolution_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740658747026666
+  auto  a1 = 2740658747026708   (a1-c1 = 42)
+  const c2 = 2740658747026708   (c2-a1 = 0)
+  auto  a2 = 2740658747026750   (a2-c2 = 42)
+  const c3 = 2740658747026791   (c3-a2 = 41)
+  单调递增(每步>=0)? YES
+
+high_resolution_clock is steady_clock ? YES
+high_resolution_clock is system_clock ? NO
+
+=== 实验 2a：sleep 100ms（已知时长）===
+system_clock            auto= 107.4540 ms   const auto= 103.0030 ms   (期望 ~100 ms)
+steady_clock            auto= 104.9952 ms   const auto= 107.4363 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 105.3285 ms   const auto= 107.3023 ms   (期望 ~100 ms)
+system_clock            auto= 105.2260 ms   const auto= 108.6830 ms   (期望 ~100 ms)
+steady_clock            auto= 106.2371 ms   const auto= 102.1012 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 101.3748 ms   const auto= 100.8276 ms   (期望 ~100 ms)
+system_clock            auto= 100.4820 ms   const auto= 103.3150 ms   (期望 ~100 ms)
+steady_clock            auto= 101.1023 ms   const auto= 105.0576 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 107.5866 ms   const auto= 110.0339 ms   (期望 ~100 ms)
+
+=== 实验 2b：计算负载 + clock_gettime 独立参照 ===
+system_clock            auto=  38.4640 ms (ref   38.4640)   const auto=  11.0430 ms (ref   11.0430)
+steady_clock            auto=  11.9516 ms (ref   11.9520)   const auto=  10.5834 ms (ref   10.5840)
+high_resolution_clock   auto=  10.3564 ms (ref   10.3570)   const auto=  10.3040 ms (ref   10.3040)
+
+system_clock            auto=  10.3380 ms (ref   10.3380)   const auto=  10.3220 ms (ref   10.3220)
+steady_clock            auto=  10.3537 ms (ref   10.3540)   const auto=  10.3014 ms (ref   10.3010)
+high_resolution_clock   auto=  10.3298 ms (ref   10.3300)   const auto=  10.3031 ms (ref   10.3040)
+
+system_clock            auto=  10.3610 ms (ref   10.3610)   const auto=  10.4020 ms (ref   10.4030)
+steady_clock            auto=  10.4065 ms (ref   10.4070)   const auto=  10.3308 ms (ref   10.3310)
+high_resolution_clock   auto=  10.3530 ms (ref   10.3530)   const auto=  10.5938 ms (ref   10.5940)
+
+
+=== 实验 4：结果未被使用的负载（DCE 陷阱）===
+auto       + 丢弃结果 :     0.0000 ms
+const auto + 丢弃结果 :     0.0000 ms
+auto       + volatile :    45.0000 ms
+const auto + volatile :    31.8302 ms
+
+################################################################
+############ 优化级别 -O3 ############
+################################################################
+=================== -std=c++17 -O3 ===================
+=== 实验 1：now() 返回值本身 ===
+
+--- system_clock (period = 1/1000000 s, is_steady=0) ---
+  const c1 = 1786911637917188
+  auto  a1 = 1786911637917188   (a1-c1 = 0)
+  const c2 = 1786911637917188   (c2-a1 = 0)
+  auto  a2 = 1786911637917188   (a2-c2 = 0)
+  const c3 = 1786911637917188   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- steady_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740662562774083
+  auto  a1 = 2740662562774166   (a1-c1 = 83)
+  const c2 = 2740662562774166   (c2-a1 = 0)
+  auto  a2 = 2740662562774208   (a2-c2 = 42)
+  const c3 = 2740662562774250   (c3-a2 = 42)
+  单调递增(每步>=0)? YES
+
+--- high_resolution_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740662562776916
+  auto  a1 = 2740662562776958   (a1-c1 = 42)
+  const c2 = 2740662562776958   (c2-a1 = 0)
+  auto  a2 = 2740662562777000   (a2-c2 = 42)
+  const c3 = 2740662562777041   (c3-a2 = 41)
+  单调递增(每步>=0)? YES
+
+high_resolution_clock is steady_clock ? YES
+high_resolution_clock is system_clock ? NO
+
+=== 实验 2a：sleep 100ms（已知时长）===
+system_clock            auto= 101.9810 ms   const auto= 107.4450 ms   (期望 ~100 ms)
+steady_clock            auto= 107.2840 ms   const auto= 105.1116 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 100.9436 ms   const auto= 101.6370 ms   (期望 ~100 ms)
+system_clock            auto= 109.6860 ms   const auto= 110.0300 ms   (期望 ~100 ms)
+steady_clock            auto= 101.6191 ms   const auto= 105.4606 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 110.0002 ms   const auto= 102.5442 ms   (期望 ~100 ms)
+system_clock            auto= 107.2860 ms   const auto= 107.6020 ms   (期望 ~100 ms)
+steady_clock            auto= 109.7230 ms   const auto= 101.7506 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 108.4078 ms   const auto= 109.4711 ms   (期望 ~100 ms)
+
+=== 实验 2b：计算负载 + clock_gettime 独立参照 ===
+system_clock            auto=  29.7700 ms (ref   29.7700)   const auto=  10.3460 ms (ref   10.3460)
+steady_clock            auto=  10.3286 ms (ref   10.3290)   const auto=  10.3849 ms (ref   10.3850)
+high_resolution_clock   auto=  10.3127 ms (ref   10.3130)   const auto=  10.6757 ms (ref   10.6780)
+
+system_clock            auto=  10.9160 ms (ref   10.9160)   const auto=  10.8160 ms (ref   10.8160)
+steady_clock            auto=  10.4685 ms (ref   10.4690)   const auto=  12.4160 ms (ref   12.4160)
+high_resolution_clock   auto=  19.2218 ms (ref   19.2230)   const auto=  10.4504 ms (ref   10.4500)
+
+system_clock            auto=  10.3360 ms (ref   10.3360)   const auto=  10.3130 ms (ref   10.3130)
+steady_clock            auto=  10.3135 ms (ref   10.3140)   const auto=  10.3168 ms (ref   10.3170)
+high_resolution_clock   auto=  10.3630 ms (ref   10.3630)   const auto=  10.3409 ms (ref   10.3410)
+
+
+=== 实验 4：结果未被使用的负载（DCE 陷阱）===
+auto       + 丢弃结果 :     0.0002 ms
+const auto + 丢弃结果 :     0.0000 ms
+auto       + volatile :    44.2210 ms
+const auto + volatile :    29.0252 ms
+
+=================== -std=c++20 -O3 ===================
+=== 实验 1：now() 返回值本身 ===
+
+--- system_clock (period = 1/1000000 s, is_steady=0) ---
+  const c1 = 1786911641892534
+  auto  a1 = 1786911641892534   (a1-c1 = 0)
+  const c2 = 1786911641892534   (c2-a1 = 0)
+  auto  a2 = 1786911641892534   (a2-c2 = 0)
+  const c3 = 1786911641892534   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- steady_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740666538099708
+  auto  a1 = 2740666538099750   (a1-c1 = 42)
+  const c2 = 2740666538099750   (c2-a1 = 0)
+  auto  a2 = 2740666538099791   (a2-c2 = 41)
+  const c3 = 2740666538099791   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- high_resolution_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740666538100791
+  auto  a1 = 2740666538100833   (a1-c1 = 42)
+  const c2 = 2740666538100833   (c2-a1 = 0)
+  auto  a2 = 2740666538100875   (a2-c2 = 42)
+  const c3 = 2740666538100875   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+high_resolution_clock is steady_clock ? YES
+high_resolution_clock is system_clock ? NO
+
+=== 实验 2a：sleep 100ms（已知时长）===
+system_clock            auto= 103.1430 ms   const auto= 110.0280 ms   (期望 ~100 ms)
+steady_clock            auto= 100.9675 ms   const auto= 109.0555 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 106.2123 ms   const auto= 106.3605 ms   (期望 ~100 ms)
+system_clock            auto= 107.1420 ms   const auto= 105.3650 ms   (期望 ~100 ms)
+steady_clock            auto= 107.6385 ms   const auto= 100.8683 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 100.0998 ms   const auto= 101.4398 ms   (期望 ~100 ms)
+system_clock            auto= 102.8380 ms   const auto= 105.1330 ms   (期望 ~100 ms)
+steady_clock            auto= 100.8179 ms   const auto= 107.5514 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 105.1957 ms   const auto= 100.2029 ms   (期望 ~100 ms)
+
+=== 实验 2b：计算负载 + clock_gettime 独立参照 ===
+system_clock            auto=  28.8190 ms (ref   28.8190)   const auto=  10.3450 ms (ref   10.3450)
+steady_clock            auto=  10.3928 ms (ref   10.3920)   const auto=  10.3738 ms (ref   10.3730)
+high_resolution_clock   auto=  10.4370 ms (ref   10.4380)   const auto=  10.5419 ms (ref   10.5420)
+
+system_clock            auto=  10.3990 ms (ref   10.3990)   const auto=  10.3590 ms (ref   10.3590)
+steady_clock            auto=  10.3247 ms (ref   10.3250)   const auto=  10.4707 ms (ref   10.4700)
+high_resolution_clock   auto=  10.5360 ms (ref   10.5360)   const auto=  10.4589 ms (ref   10.4590)
+
+system_clock            auto=  10.3210 ms (ref   10.3210)   const auto=  10.2990 ms (ref   10.2990)
+steady_clock            auto=  10.3704 ms (ref   10.3710)   const auto=  10.3443 ms (ref   10.3440)
+high_resolution_clock   auto=  10.3358 ms (ref   10.3360)   const auto=  10.3235 ms (ref   10.3240)
+
+
+=== 实验 4：结果未被使用的负载（DCE 陷阱）===
+auto       + 丢弃结果 :     0.0000 ms
+const auto + 丢弃结果 :     0.0000 ms
+auto       + volatile :    28.2156 ms
+const auto + volatile :    27.9742 ms
+
+=================== -std=c++23 -O3 ===================
+=== 实验 1：now() 返回值本身 ===
+
+--- system_clock (period = 1/1000000 s, is_steady=0) ---
+  const c1 = 1786911645944575
+  auto  a1 = 1786911645944575   (a1-c1 = 0)
+  const c2 = 1786911645944575   (c2-a1 = 0)
+  auto  a2 = 1786911645944575   (a2-c2 = 0)
+  const c3 = 1786911645944575   (c3-a2 = 0)
+  单调递增(每步>=0)? YES
+
+--- steady_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740670590126041
+  auto  a1 = 2740670590126125   (a1-c1 = 84)
+  const c2 = 2740670590126166   (c2-a1 = 41)
+  auto  a2 = 2740670590126166   (a2-c2 = 0)
+  const c3 = 2740670590126208   (c3-a2 = 42)
+  单调递增(每步>=0)? YES
+
+--- high_resolution_clock (period = 1/1000000000 s, is_steady=1) ---
+  const c1 = 2740670590129500
+  auto  a1 = 2740670590129541   (a1-c1 = 41)
+  const c2 = 2740670590129583   (c2-a1 = 42)
+  auto  a2 = 2740670590129583   (a2-c2 = 0)
+  const c3 = 2740670590129625   (c3-a2 = 42)
+  单调递增(每步>=0)? YES
+
+high_resolution_clock is steady_clock ? YES
+high_resolution_clock is system_clock ? NO
+
+=== 实验 2a：sleep 100ms（已知时长）===
+system_clock            auto= 110.0260 ms   const auto= 110.0120 ms   (期望 ~100 ms)
+steady_clock            auto= 109.0225 ms   const auto= 108.3536 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 101.5920 ms   const auto= 101.1254 ms   (期望 ~100 ms)
+system_clock            auto= 102.9200 ms   const auto= 100.7630 ms   (期望 ~100 ms)
+steady_clock            auto= 107.4007 ms   const auto= 109.6955 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 105.0454 ms   const auto= 110.0315 ms   (期望 ~100 ms)
+system_clock            auto= 100.4350 ms   const auto= 110.0310 ms   (期望 ~100 ms)
+steady_clock            auto= 100.7200 ms   const auto= 102.1438 ms   (期望 ~100 ms)
+high_resolution_clock   auto= 103.3714 ms   const auto= 103.2757 ms   (期望 ~100 ms)
+
+=== 实验 2b：计算负载 + clock_gettime 独立参照 ===
+system_clock            auto=  31.4600 ms (ref   31.4610)   const auto=  14.5780 ms (ref   14.5780)
+steady_clock            auto=  10.6009 ms (ref   10.6020)   const auto=  10.5675 ms (ref   10.5670)
+high_resolution_clock   auto=  11.1146 ms (ref   11.1140)   const auto=  11.2092 ms (ref   11.2100)
+
+system_clock            auto=  10.6980 ms (ref   10.6980)   const auto=  10.6230 ms (ref   10.6230)
+steady_clock            auto=  10.6316 ms (ref   10.6320)   const auto=  10.3821 ms (ref   10.3820)
+high_resolution_clock   auto=  10.7162 ms (ref   10.7160)   const auto=  10.5373 ms (ref   10.5380)
+
+system_clock            auto=  10.4630 ms (ref   10.4630)   const auto=  10.6450 ms (ref   10.6460)
+steady_clock            auto=  10.6435 ms (ref   10.6440)   const auto=  10.5081 ms (ref   10.5080)
+high_resolution_clock   auto=  10.5128 ms (ref   10.5130)   const auto=  10.6938 ms (ref   10.6950)
+
+
+=== 实验 4：结果未被使用的负载（DCE 陷阱）===
+auto       + 丢弃结果 :     0.0000 ms
+const auto + 丢弃结果 :     0.0000 ms
+auto       + volatile :    27.9582 ms
+const auto + volatile :    27.8657 ms
+
+################################################################
+############ 反汇编对照 (-O2) ############
+################################################################
+--- 完整汇编 ---
+	.section	__TEXT,__text,regular,pure_instructions
+	.build_version macos, 26, 0	sdk_version 26, 5
+	.globl	__Z16elapsed_nonconstv          ; -- Begin function _Z16elapsed_nonconstv
+	.p2align	2
+__Z16elapsed_nonconstv:                 ; @_Z16elapsed_nonconstv
+	.cfi_startproc
+; %bb.0:
+	stp	x20, x19, [sp, #-32]!           ; 16-byte Folded Spill
+	stp	x29, x30, [sp, #16]             ; 16-byte Folded Spill
+	add	x29, sp, #16
+	.cfi_def_cfa w29, 16
+	.cfi_offset w30, -8
+	.cfi_offset w29, -16
+	.cfi_offset w19, -24
+	.cfi_offset w20, -32
+	bl	__ZNSt3__16chrono12steady_clock3nowEv
+	mov	x19, x0
+	bl	__Z4workv
+	bl	__ZNSt3__16chrono12steady_clock3nowEv
+	sub	x0, x0, x19
+	ldp	x29, x30, [sp, #16]             ; 16-byte Folded Reload
+	ldp	x20, x19, [sp], #32             ; 16-byte Folded Reload
+	ret
+	.cfi_endproc
+                                        ; -- End function
+	.globl	__Z13elapsed_constv             ; -- Begin function _Z13elapsed_constv
+	.p2align	2
+__Z13elapsed_constv:                    ; @_Z13elapsed_constv
+	.cfi_startproc
+; %bb.0:
+	stp	x20, x19, [sp, #-32]!           ; 16-byte Folded Spill
+	stp	x29, x30, [sp, #16]             ; 16-byte Folded Spill
+	add	x29, sp, #16
+	.cfi_def_cfa w29, 16
+	.cfi_offset w30, -8
+	.cfi_offset w29, -16
+	.cfi_offset w19, -24
+	.cfi_offset w20, -32
+	bl	__ZNSt3__16chrono12steady_clock3nowEv
+	mov	x19, x0
+	bl	__Z4workv
+	bl	__ZNSt3__16chrono12steady_clock3nowEv
+	sub	x0, x0, x19
+	ldp	x29, x30, [sp, #16]             ; 16-byte Folded Reload
+	ldp	x20, x19, [sp], #32             ; 16-byte Folded Reload
+	ret
+	.cfi_endproc
+                                        ; -- End function
+.subsections_via_symbols

@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>const auto 不会让 chrono::now() 出错 — 一次实机验证报告</title>
+<meta name="description" content="针对「在 macOS 上 const auto t = chrono::X::now() 因常量折叠返回错误时间」这一论断的完整实机验证：汇编、LLVM IR、三套编译器、600 对配对测量。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Noto+Serif+SC:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#090b0e;
+  --ink2:#0f1319;
+  --ink3:#151a21;
+  --line:#242c36;
+  --line2:#333d4a;
+  --paper:#e7e3d9;
+  --dim:#8b939d;
+  --dim2:#636b75;
+  --amber:#ffb02e;
+  --cyan:#57cfd6;
+  --crimson:#ef6060;
+  --green:#84d894;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --serif:'Noto Serif SC','Instrument Serif',Georgia,serif;
+  --display:'Instrument Serif',Georgia,serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--ink);color:var(--paper);
+  font-family:var(--serif);font-size:17px;line-height:1.85;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    linear-gradient(rgba(255,255,255,.017) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.017) 1px,transparent 1px);
+  background-size:56px 56px;
+}
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.5;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+}
+.wrap{max-width:940px;margin:0 auto;padding:0 24px;position:relative;z-index:2}
+
+/* progress */
+#bar{position:fixed;top:0;left:0;height:2px;background:var(--amber);z-index:99;width:0;transition:width .1s linear}
+
+/* ---------- hero ---------- */
+header{padding:88px 0 56px;border-bottom:1px solid var(--line)}
+.kicker{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--amber);margin-bottom:26px}
+h1{
+  font-family:var(--display);font-weight:400;
+  font-size:clamp(38px,7vw,74px);line-height:1.08;margin:0 0 6px;letter-spacing:-.01em;
+}
+h1 .cn{font-family:var(--serif);font-weight:600;font-size:.78em;letter-spacing:-.02em}
+.sub{font-size:clamp(16px,2.4vw,19px);color:var(--dim);margin:22px 0 0;max-width:62ch}
+.verdict{
+  margin:44px 0 0;display:inline-flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+  border:1px solid var(--crimson);border-left-width:4px;padding:16px 22px;background:rgba(239,96,96,.055);
+}
+.verdict b{font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--crimson);text-transform:uppercase}
+.verdict span{font-size:18px;font-weight:600}
+.meta{margin-top:40px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+.meta div{background:var(--ink);padding:13px 16px}
+.meta dt{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim2);margin:0 0 5px}
+.meta dd{margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.55;color:var(--paper)}
+
+/* ---------- sections ---------- */
+section{padding:64px 0;border-bottom:1px solid var(--line)}
+.num{font-family:var(--mono);font-size:11.5px;letter-spacing:.2em;color:var(--amber);margin-bottom:14px}
+h2{font-family:var(--serif);font-weight:600;font-size:clamp(25px,4vw,34px);line-height:1.3;margin:0 0 8px;letter-spacing:-.02em}
+h2 .en{font-family:var(--display);font-weight:400;color:var(--dim2);font-size:.72em;display:block;margin-top:6px;letter-spacing:0}
+h3{font-family:var(--serif);font-weight:600;font-size:19px;margin:38px 0 12px;color:var(--paper)}
+h3::before{content:'';display:inline-block;width:7px;height:7px;background:var(--amber);margin-right:11px;vertical-align:middle}
+p{margin:0 0 18px;max-width:74ch}
+a{color:var(--cyan);text-decoration:none;border-bottom:1px solid rgba(87,207,214,.3)}
+a:hover{border-bottom-color:var(--cyan)}
+code{font-family:var(--mono);font-size:.87em;background:var(--ink3);padding:2px 6px;border:1px solid var(--line);color:var(--amber);white-space:nowrap}
+strong{font-weight:700;color:#fff}
+em{font-style:normal;background:linear-gradient(transparent 62%,rgba(255,176,46,.22) 0);padding:0 2px}
+
+/* quote of the claim */
+blockquote{
+  margin:0 0 30px;padding:22px 26px;background:var(--ink2);border-left:3px solid var(--line2);
+  font-size:16px;color:var(--paper)
+}
+blockquote p{margin:0 0 10px}
+blockquote p:last-child{margin:0}
+blockquote cite{display:block;margin-top:14px;font-style:normal;font-family:var(--mono);font-size:11px;letter-spacing:.13em;color:var(--dim2);text-transform:uppercase}
+
+/* code blocks */
+pre{
+  font-family:var(--mono);font-size:12.5px;line-height:1.68;background:var(--ink2);
+  border:1px solid var(--line);padding:18px 20px;overflow-x:auto;margin:0 0 20px;
+  color:#cdd4dc;-webkit-overflow-scrolling:touch
+}
+pre .c{color:var(--dim2)}
+pre .k{color:var(--amber)}
+pre .g{color:var(--green)}
+pre .r{color:var(--crimson)}
+pre .b{color:var(--cyan)}
+.filename{font-family:var(--mono);font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim2);background:var(--ink3);border:1px solid var(--line);border-bottom:none;padding:8px 20px;margin:0}
+.filename+pre{margin-top:0}
+
+/* two-column asm */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:20px}
+.split>div{background:var(--ink2);min-width:0}
+.split h4{margin:0;font-family:var(--mono);font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim2);padding:9px 16px;border-bottom:1px solid var(--line);background:var(--ink3)}
+.split pre{border:none;margin:0;background:transparent;font-size:11.5px}
+@media(max-width:760px){.split{grid-template-columns:1fr}}
+
+/* verdict strip inside sections */
+.finding{
+  display:flex;gap:16px;align-items:flex-start;
+  border:1px solid var(--line2);border-left:4px solid var(--green);
+  background:rgba(132,216,148,.05);padding:16px 20px;margin:24px 0 0
+}
+.finding.bad{border-left-color:var(--crimson);background:rgba(239,96,96,.05)}
+.finding .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--green);white-space:nowrap;padding-top:5px}
+.finding.bad .tag{color:var(--crimson)}
+.finding p{margin:0;font-size:16px}
+
+/* tables */
+.tw{overflow-x:auto;margin:0 0 20px;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:12.5px;min-width:520px}
+th,td{border:1px solid var(--line);padding:9px 13px;text-align:left}
+th{background:var(--ink3);color:var(--dim);font-weight:500;font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+td.n{text-align:right}
+tr:hover td{background:var(--ink2)}
+.ok{color:var(--green)}
+.no{color:var(--crimson)}
+.hl{color:var(--amber)}
+
+/* faq */
+details{border:1px solid var(--line);background:var(--ink2);margin-bottom:10px}
+details[open]{border-color:var(--line2)}
+summary{
+  cursor:pointer;padding:16px 20px;font-weight:600;font-size:16.5px;list-style:none;
+  display:flex;gap:13px;align-items:flex-start
+}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'?';font-family:var(--mono);color:var(--amber);font-size:14px;flex-shrink:0;padding-top:2px}
+details[open] summary{border-bottom:1px solid var(--line)}
+.answer{padding:20px 20px 6px 46px}
+.answer p{font-size:16px}
+@media(max-width:600px){.answer{padding-left:20px}}
+
+/* callout */
+.note{border:1px dashed var(--line2);padding:18px 22px;margin:24px 0;background:var(--ink2);font-size:16px}
+.note p:last-child{margin-bottom:0}
+
+ul,ol{max-width:74ch;padding-left:22px;margin:0 0 18px}
+li{margin-bottom:9px}
+li::marker{color:var(--amber)}
+
+footer{padding:56px 0 90px;color:var(--dim2);font-size:14px}
+footer a{color:var(--dim)}
+.dl{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0}
+.dl a{
+  font-family:var(--mono);font-size:12px;border:1px solid var(--line2);padding:9px 15px;
+  color:var(--paper);border-bottom-width:1px;transition:.15s
+}
+.dl a:hover{background:var(--ink3);border-color:var(--amber);color:var(--amber)}
+
+/* toc */
+#toc{
+  position:fixed;left:calc(50% + 500px);top:120px;width:210px;font-family:var(--mono);
+  font-size:11px;line-height:1.9;z-index:5
+}
+#toc a{display:block;color:var(--dim2);border:none;padding:1px 0 1px 12px;border-left:1px solid var(--line)}
+#toc a:hover,#toc a.on{color:var(--amber);border-left-color:var(--amber)}
+@media(max-width:1420px){#toc{display:none}}
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<nav id="toc">
+  <a href="#claim">00 · 原始论断</a>
+  <a href="#env">01 · 测试环境</a>
+  <a href="#asm">02 · 机器码对照</a>
+  <a href="#ir">03 · LLVM IR 对照</a>
+  <a href="#fold">04 · 常量折叠不可能</a>
+  <a href="#bench">05 · 600 对配对测量</a>
+  <a href="#variants">06 · 写法变体</a>
+  <a href="#real">07 · 真正的元凶</a>
+  <a href="#rebuttal">08 · 预判反驳</a>
+  <a href="#repro">09 · 复现方式</a>
+</nav>
+
+<header>
+<div class="wrap">
+  <div class="kicker">实机验证报告 · Empirical Verification</div>
+  <h1><span class="cn">「</span>const auto<span class="cn">」不会让</span> chrono::now() <span class="cn">出错</span></h1>
+  <p class="sub">
+    针对「在 MacBook 上 <code>const auto t = chrono::&lt;AnyClock&gt;::now()</code> 返回的时间有问题，改成
+    <code>auto</code> 就对了，怀疑是常量折叠（constant folding）出了问题，应该是编译器 bug」这一论断，
+    在一台 Apple Silicon MacBook Pro 上做的完整验证。
+  </p>
+
+  <div class="verdict">
+    <b>裁决</b>
+    <span>论断不成立。这不是编译器 bug。</span>
+  </div>
+
+  <div class="meta">
+    <div><dt>机器</dt><dd>MacBookPro18,2<br>Apple M1 Max · 10 核</dd></div>
+    <div><dt>系统</dt><dd>macOS 26.5.2<br>build 25F84</dd></div>
+    <div><dt>编译器</dt><dd>Apple clang 17.0.0<br>Apple clang 21.0.0<br>Homebrew clang 20.1.5</dd></div>
+    <div><dt>标准库</dt><dd>libc++ 210106<br>MacOSX.sdk 26.5</dd></div>
+    <div><dt>证据规模</dt><dd>12 组编译配置<br>216 + 600 对配对测量</dd></div>
+    <div><dt>日期</dt><dd>2026-08-16</dd></div>
+  </div>
+</div>
+</header>
+
+<!-- ===================== 00 ===================== -->
+<section id="claim">
+<div class="wrap">
+  <div class="num">00</div>
+  <h2>原始论断<span class="en">The Claim</span></h2>
+
+  <blockquote>
+    <p>在 macbook 上发现一个应该是编译器 bug。</p>
+    <p>如果我写 <code>const auto t = chrono::&lt;AnyClock&gt;::now()</code>。返回的时间是有问题的。</p>
+    <p>如果我把 <code>const auto</code> 改成 <code>auto</code>，就对了。</p>
+    <p>感觉应该是 constant folding 出了问题。花了老子半个小时琢磨为啥测出来的 performance 不对。</p>
+    <cite>原文</cite>
+  </blockquote>
+
+  <p>这段话里包含三个彼此独立、都可以被单独证伪的命题：</p>
+
+  <div class="tw">
+  <table>
+    <tr><th style="width:52px">#</th><th>命题</th><th style="width:110px">检验方式</th><th style="width:96px">结果</th></tr>
+    <tr><td class="hl">P1</td><td><code>const auto</code> 版本得到的时间是错的</td><td>行为测量</td><td class="no">未复现</td></tr>
+    <tr><td class="hl">P2</td><td>改成 <code>auto</code> 结果就正确了</td><td>行为测量 + 代码生成对照</td><td class="no">未复现</td></tr>
+    <tr><td class="hl">P3</td><td>原因是常量折叠（constant folding）</td><td>语言规则 + 编译器诊断</td><td class="no">可直接证伪</td></tr>
+  </table>
+  </div>
+
+  <div class="note">
+    <p><strong>需要先说清楚的一点：</strong>他遇到的「测出来的 performance 不对」大概率是真的——这份报告不否认这件事。
+    本报告否认的是<em>归因</em>：把它算到 <code>const</code> 和常量折叠头上。第 07 节给出了几个能真实造成这种症状、
+    而且我在同一台机器上复现出来的原因。</p>
+  </div>
+</div>
+</section>
+
+<!-- ===================== 01 ===================== -->
+<section id="env">
+<div class="wrap">
+  <div class="num">01</div>
+  <h2>测试环境<span class="en">Environment</span></h2>
+
+  <p>所有实验在同一台机器上完成，不是模拟、不是别的平台外推。为避免「你的工具链和我的不一样」这类反驳，
+  同一组关键实验在<strong>三套独立的编译器</strong>上各跑了一遍。</p>
+
+<pre><span class="c"># 硬件 / 系统</span>
+MacBookPro18,2 · Apple M1 Max · hw.ncpu = 10
+macOS 26.5.2 (25F84)
+
+<span class="c"># 编译器 A —— Xcode 26.3 自带</span>
+Apple clang version 17.0.0 (clang-1700.6.4.2)
+Target: arm64-apple-darwin25.5.0 · target-cpu apple-m1
+
+<span class="c"># 编译器 B —— Command Line Tools 自带（更新）</span>
+Apple clang version 21.0.0 (clang-2100.1.1.101)
+
+<span class="c"># 编译器 C —— Homebrew 上游 LLVM，与 Apple 分支无关</span>
+Homebrew clang version 20.1.5
+
+<span class="c"># 标准库</span>
+_LIBCPP_VERSION = 210106
+-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk  (target-sdk-version 26.5)</pre>
+
+  <p>覆盖的编译配置：优化级别 <code>-O0</code> / <code>-O1</code> / <code>-O2</code> / <code>-O3</code>，
+  语言标准 <code>c++17</code> / <code>c++20</code> / <code>c++23</code>（共 12 组），
+  另加 <code>-Ofast</code>、<code>-O3 -flto</code>、<code>-O3 -mcpu=native</code>、
+  <code>-Ofast -flto -mcpu=native</code>，以及一组 <code>-arch x86_64</code>（Rosetta）交叉验证。</p>
+
+  <div class="note">
+    <p><strong>关于「AnyClock」：</strong>本机 libc++ 的 <code>__cpp_lib_chrono = 201611</code>，
+    即 Apple 发行的标准库没有开放 C++20 的 <code>utc_clock</code> / <code>tai_clock</code> /
+    <code>gps_clock</code> / <code>file_clock</code>。可用的三个标准时钟
+    ——<code>system_clock</code>、<code>steady_clock</code>、<code>high_resolution_clock</code>——全部测了。
+    而且第 02–04 节的论证是<em>结构性</em>的：它不依赖于具体是哪个 clock。</p>
+  </div>
+</div>
+</section>
+
+<!-- ===================== 02 ===================== -->
+<section id="asm">
+<div class="wrap">
+  <div class="num">02</div>
+  <h2>证据一：编译器吐出来的机器码逐字节相同<span class="en">Identical Machine Code</span></h2>
+
+  <p>这是最直接的一刀。写两个除了 <code>const</code> 之外完全一样的函数，放进<em>同一个翻译单元</em>、
+  用<em>同一次编译</em>产出汇编，然后比对。如果 P1、P2 成立，这里必须出现差异——
+  因为「返回的时间不对」只可能来自不同的代码。</p>
+
+  <p class="filename">src/test3_asm.cpp</p>
+<pre><span class="k">#include</span> &lt;chrono&gt;
+<span class="k">using namespace</span> std::chrono;
+
+<span class="k">extern void</span> work();
+
+<span class="b">long long</span> elapsed_nonconst() {
+    <span class="k">auto</span> t0 = steady_clock::now();
+    work();
+    <span class="k">auto</span> t1 = steady_clock::now();
+    <span class="k">return</span> duration_cast&lt;nanoseconds&gt;(t1 - t0).count();
+}
+
+<span class="b">long long</span> elapsed_const() {
+    <span class="k">const auto</span> t0 = steady_clock::now();
+    work();
+    <span class="k">const auto</span> t1 = steady_clock::now();
+    <span class="k">return</span> duration_cast&lt;nanoseconds&gt;(t1 - t0).count();
+}</pre>
+
+  <p><code>clang++ -std=c++20 -O2 -S</code> 的输出（已去掉 <code>.cfi</code> 伪指令和符号名）：</p>
+
+  <div class="split">
+    <div>
+      <h4>elapsed_nonconst</h4>
+<pre>stp  x20, x19, [sp, #-32]!
+stp  x29, x30, [sp, #16]
+add  x29, sp, #16
+<span class="g">bl   steady_clock::now()</span>
+mov  x19, x0
+<span class="g">bl   work()</span>
+<span class="g">bl   steady_clock::now()</span>
+sub  x0, x0, x19
+ldp  x29, x30, [sp, #16]
+ldp  x20, x19, [sp], #32
+ret</pre>
+    </div>
+    <div>
+      <h4>elapsed_const</h4>
+<pre>stp  x20, x19, [sp, #-32]!
+stp  x29, x30, [sp, #16]
+add  x29, sp, #16
+<span class="g">bl   steady_clock::now()</span>
+mov  x19, x0
+<span class="g">bl   work()</span>
+<span class="g">bl   steady_clock::now()</span>
+sub  x0, x0, x19
+ldp  x29, x30, [sp, #16]
+ldp  x20, x19, [sp], #32
+ret</pre>
+    </div>
+  </div>
+
+<pre><span class="c">$ diff a.txt b.txt</span>
+<span class="c"># （无输出）</span>
+指令数: nonconst = 11    const = 11
+md5:    nonconst = <span class="hl">27bd6f884ad1c3990945379907774666</span>
+        const    = <span class="hl">27bd6f884ad1c3990945379907774666</span></pre>
+
+  <p>三套编译器分别验证：</p>
+
+  <div class="tw">
+  <table>
+    <tr><th>编译器</th><th>指令数</th><th>汇编比对</th><th>md5</th></tr>
+    <tr><td>Apple clang 17.0.0</td><td class="n">11 / 11</td><td class="ok">完全相同</td><td>27bd6f88…</td></tr>
+    <tr><td>Apple clang 21.0.0</td><td class="n">11 / 11</td><td class="ok">完全相同</td><td>27bd6f88…</td></tr>
+    <tr><td>Homebrew clang 20.1.5</td><td class="n">— </td><td class="ok">完全相同</td><td>—</td></tr>
+  </table>
+  </div>
+
+  <div class="finding">
+    <div class="tag">结论</div>
+    <p>编译器在代码生成层面对 <code>const auto</code> 和 <code>auto</code> <strong>没有任何区别对待</strong>。
+    两个函数产生同一串指令、同一个哈希。既然指令完全一样，就不存在「一个版本算对、另一个版本算错」的物理可能。</p>
+  </div>
+</div>
+</section>
+
+<!-- ===================== 03 ===================== -->
+<section id="ir">
+<div class="wrap">
+  <div class="num">03</div>
+  <h2>证据二：LLVM IR 层面同样相同<span class="en">Identical IR</span></h2>
+
+  <p>汇编相同还可能被质疑成「后端把差异抹平了」。所以再往上看一层：LLVM IR，
+  <em>在整条优化管线跑完之后、指令选择之前</em>。常量折叠是一个 IR 层面的变换——
+  如果它真的发生了，这里一定看得见。</p>
+
+<pre><span class="c">$ clang++ -std=c++20 -O2 -S -emit-llvm test3_asm.cpp</span>
+
+<span class="c">--- elapsed_nonconst 函数体 ---</span>
+  %N = tail call i64 @_ZNSt3__16chrono12steady_clock3nowEv() #3
+  tail call void @_Z4workv()
+  %N = tail call i64 @_ZNSt3__16chrono12steady_clock3nowEv() #3
+  %N = sub nsw i64 %N, %N
+  ret i64 %N
+
+<span class="c">--- elapsed_const 函数体 ---</span>
+  %N = tail call i64 @_ZNSt3__16chrono12steady_clock3nowEv() #3
+  tail call void @_Z4workv()
+  %N = tail call i64 @_ZNSt3__16chrono12steady_clock3nowEv() #3
+  %N = sub nsw i64 %N, %N
+  ret i64 %N
+
+<span class="g">&gt;&gt;&gt; 函数体 IR 完全相同 (IDENTICAL)</span>
+md5: nonconst = <span class="hl">916a606c8c579b13627207aadbd3ab7e</span>
+     const    = <span class="hl">916a606c8c579b13627207aadbd3ab7e</span></pre>
+
+  <p>注意 IR 里<strong>两次 <code>call now()</code> 都原样保留着</strong>，一次都没被合并、没被外提、没被折叠。
+  Homebrew clang 20.1.5 的 IR 对照结果同样是完全相同。</p>
+
+  <div class="note">
+    <p><small>严谨起见：两个函数的 <code>define</code> 行本身确实不同，但差异仅在 mangled 名
+    <code>_Z16elapsed_nonconstv</code> 与 <code>_Z13elapsed_constv</code>（长度前缀 16 与 13）。
+    上面比对的是函数体，md5 取自函数体。</small></p>
+  </div>
+
+  <div class="finding">
+    <div class="tag">结论</div>
+    <p>优化管线在两种写法上走了完全一样的路径。<strong>没有任何折叠、合并或重排发生在其中之一而不发生在另一个上。</strong></p>
+  </div>
+</div>
+</section>
+
+<!-- ===================== 04 ===================== -->
+<section id="fold">
+<div class="wrap">
+  <div class="num">04</div>
+  <h2>证据三：常量折叠在这里物理上不可能<span class="en">Constant Folding Is Impossible Here</span></h2>
+
+  <p>P3 是三个命题里最容易证伪的一个，而且它的证伪<em>不依赖于任何测量</em>——只要一行代码。</p>
+
+  <h3>常量折叠的前提是「常量表达式」</h3>
+
+  <p>编译器要折叠一个表达式，前提是它能在编译期求值，也就是这个表达式必须是 constant expression。
+  那就强制要求它是，看编译器怎么说：</p>
+
+<pre><span class="c">$ cat test5_constexpr.cpp</span>
+#include &lt;chrono&gt;
+using namespace std::chrono;
+<span class="k">constexpr</span> auto t = steady_clock::now();
+
+<span class="c">$ clang++ -std=c++23 -O2 test5_constexpr.cpp</span>
+<span class="r">error: constexpr variable 't' must be initialized by a constant expression</span>
+    3 | constexpr auto t = steady_clock::now();
+      |                ^   ~~~~~~~~~~~~~~~~~~~
+<span class="b">note: non-constexpr function 'now' cannot be used in a constant expression</span>
+      |                    ^
+<span class="b">/…/c++/v1/__chrono/steady_clock.h:34:21: note: declared here</span>
+   34 |   <span class="k">static</span> time_point now() _NOEXCEPT;
+      |                     ^
+
+<span class="c">编译退出码: 1  （Apple clang 17 与 Apple clang 21 输出一致）</span></pre>
+
+  <p>标准库里 <code>now()</code> 的声明就摆在那里：<code>static time_point now() _NOEXCEPT;</code>——
+  <strong>没有 <code>constexpr</code></strong>。编译器根本没有权限对它求值。</p>
+
+  <h3>它甚至不是编译器能看穿的函数</h3>
+
+  <p>更进一步，<code>now()</code> 在目标文件里是一个<strong>未定义的外部符号</strong>，
+  实现体在 <code>libc++.dylib</code> 里，编译单个 TU 时编译器连它的函数体都看不到：</p>
+
+<pre><span class="c">$ clang++ -std=c++20 -O2 -c test3_asm.cpp -o test3.o
+$ nm test3.o | grep -i now | c++filt</span>
+
+<span class="hl">U</span>  std::__1::chrono::steady_clock::now()
+<span class="c">^ U = undefined，一个不透明的外部调用</span></pre>
+
+  <p>而且它<strong>没有</strong>被标注 <code>__attribute__((const))</code> 或 <code>((pure))</code>。
+  这一点决定性地关闭了另一条路：编译器不被允许假设两次 <code>now()</code> 返回同样的值，
+  因此连公共子表达式消除（CSE）都做不了，更别说折叠成一个编译期常量。IR 里两次调用完好无损，正是这个规则的直接体现。</p>
+
+  <h3>顺带澄清：<code>const</code> 在这里不给优化器任何新信息</h3>
+
+  <ul>
+    <li>对<strong>局部变量</strong>而言，优化器手里有整个函数体，本来就完整知道这个变量有没有被改过。
+      加不加 <code>const</code> 不会给它任何额外的假设权限。</li>
+    <li><code>const</code> 只是「承诺你不通过这个名字去修改它」，<em>不是</em>「这个值在编译期已知」。
+      后者是 <code>constexpr</code> / <code>constinit</code> 的活。</li>
+    <li><code>auto</code> 推导会丢弃顶层 <code>const</code>：两种写法里 <code>t</code> 的推导类型
+      同为 <code>steady_clock::time_point</code>，前者只是多了个顶层 cv 限定符。这也是为什么 IR 会一模一样。</li>
+  </ul>
+
+  <div class="finding bad">
+    <div class="tag">P3 证伪</div>
+    <p>常量折叠需要常量表达式；<code>now()</code> 不是 <code>constexpr</code>、不是 pure、在编译期是不透明外部符号。
+    <strong>这里不可能发生常量折叠，无论加不加 <code>const</code>。</strong>
+    这一条任何人都可以在自己机器上花 10 秒复现，不需要跑任何 benchmark。</p>
+  </div>
+</div>
+</section>
+
+<!-- ===================== 05 ===================== -->
+<section id="bench">
+<div class="wrap">
+  <div class="num">05</div>
+  <h2>证据四：行为层面，600 对配对测量零差异<span class="en">No Behavioural Difference</span></h2>
+
+  <p>代码生成层面已经结案了，但为了不给「理论归理论」留余地，行为层面也全测一遍。</p>
+
+  <h3>方法：每次测量都配一个独立参照物</h3>
+
+  <p>chrono 的读数不能自己证明自己。所以每一段被测区间外面再套一层
+  <code>clock_gettime(CLOCK_MONOTONIC)</code>——一个完全不经过 <code>&lt;chrono&gt;</code> 的独立时间源。
+  如果 chrono 在撒谎，两者必然对不上。</p>
+
+  <div class="tw">
+  <table>
+    <tr><th>配置</th><th>clock</th><th class="n">auto</th><th class="n">参照 (clock_gettime)</th><th class="n">const auto</th><th class="n">参照 (clock_gettime)</th></tr>
+    <tr><td>-O2 c++17</td><td>steady_clock</td><td class="n">11.0062</td><td class="n hl">11.0070</td><td class="n">10.4513</td><td class="n hl">10.4520</td></tr>
+    <tr><td>-O2 c++17</td><td>high_resolution</td><td class="n">10.7333</td><td class="n hl">10.7340</td><td class="n">10.8817</td><td class="n hl">10.8820</td></tr>
+    <tr><td>-O2 c++20</td><td>system_clock</td><td class="n">10.5890</td><td class="n hl">10.5890</td><td class="n">10.3780</td><td class="n hl">10.3780</td></tr>
+    <tr><td>-O2 c++20</td><td>steady_clock</td><td class="n">10.5916</td><td class="n hl">10.5930</td><td class="n">10.5471</td><td class="n hl">10.5470</td></tr>
+    <tr><td>-O3 -flto</td><td>high_resolution</td><td class="n">11.9908</td><td class="n hl">11.9910</td><td class="n">10.8184</td><td class="n hl">10.8190</td></tr>
+    <tr><td>x86_64 (Rosetta)</td><td>steady_clock</td><td class="n">26.1059</td><td class="n hl">26.1090</td><td class="n">26.2531</td><td class="n hl">26.2550</td></tr>
+  </table>
+  <p style="font-size:13px;color:var(--dim2);font-family:var(--mono);margin-top:-8px">单位 ms。chrono 读数与独立参照物在小数点后三位吻合——两种写法都是。</p>
+  </div>
+
+  <h3>统计学对照：交替采样 200 轮 × 3 个 clock</h3>
+
+  <p>单次测量是有噪声的，拿单点说事对谁都不公平。所以做配对交替采样（奇偶轮换先后顺序以抵消漂移），
+  每个 clock 各 200 对，比中位数和最小值：</p>
+
+<pre><span class="c">=== 交替采样 200 轮的统计对照（单位 ms）===</span>
+
+system_clock     auto : p50=10.7450  p25=10.6540  p75=10.8710  min=10.5390
+                 const: p50=10.7680  p25=10.6540  p75=10.8950  min=10.5420
+                 <span class="g">中位数差异 +0.214%    最小值差异 +0.028%</span>
+
+steady_clock     auto : p50=10.7142  p25=10.6246  p75=10.8625  min=10.5405
+                 const: p50=10.7344  p25=10.6409  p75=10.8829  min=10.5781
+                 <span class="g">中位数差异 +0.189%    最小值差异 +0.357%</span>
+
+high_resolution  auto : p50=10.8168  p25=10.7101  p75=10.9391  min=10.5667
+                 const: p50=10.8240  p25=10.6992  p75=10.9405  min=10.5751
+                 <span class="g">中位数差异 +0.067%    最小值差异 +0.080%</span></pre>
+
+  <h3>已知时长对照：sleep 100 ms</h3>
+
+  <p>另有一组用完全已知的时长做标尺（<code>sleep_for(100ms)</code>），12 组编译配置 × 3 clock × 3 轮，
+  两种写法全部落在 100–110 ms 区间，没有一次出现数量级或系统性偏差。</p>
+
+  <h3>时间点数值本身</h3>
+
+  <p>还测了最原始的一层：交错采样 <code>const</code> / <code>auto</code> 五个时间点，检查原始 tick 值的单调性。
+  全部编译配置下 <strong>100% 单调递增</strong>，没有出现负步长、跳变或数值异常。</p>
+
+  <div class="finding">
+    <div class="tag">结论</div>
+    <p>216 对（矩阵测量）+ 600 对（统计测量）配对样本，跨 4 个优化级别、3 个语言标准、
+    两种 CPU 架构、三种 clock。<strong>两种写法的差异全部落在测量噪声内（中位数差异 ≤ 0.214%）。</strong></p>
+  </div>
+</div>
+</section>
+
+<!-- ===================== 06 ===================== -->
+<section id="variants">
+<div class="wrap">
+  <div class="num">06</div>
+  <h2>证据五：所有 const 相关写法变体<span class="en">All const Spellings</span></h2>
+
+  <p>为了排除「也许你写的 const 和我写的 const 不是同一个写法」，把能想到的变体全测：</p>
+
+  <div class="tw">
+  <table>
+    <tr><th>写法</th><th class="n">r1</th><th class="n">r2</th><th class="n">r3</th><th class="n">r4</th><th class="n">r5</th></tr>
+    <tr><td><code>auto t = now()</code></td><td class="n">10.3658</td><td class="n">10.5269</td><td class="n">10.5455</td><td class="n">10.3835</td><td class="n">10.6267</td></tr>
+    <tr><td><code>const auto t = now()</code></td><td class="n">10.6197</td><td class="n">10.4242</td><td class="n">10.7830</td><td class="n">10.7027</td><td class="n">10.3456</td></tr>
+    <tr><td><code>auto const t = now()</code></td><td class="n">10.5848</td><td class="n">10.6844</td><td class="n">10.8179</td><td class="n">10.4926</td><td class="n">10.5246</td></tr>
+    <tr><td><code>const auto&amp; t = now()</code></td><td class="n">10.3794</td><td class="n">10.2852</td><td class="n">10.3049</td><td class="n">10.2720</td><td class="n">10.3208</td></tr>
+    <tr><td><code>auto&amp;&amp; t = now()</code></td><td class="n">10.3050</td><td class="n">10.2592</td><td class="n">10.2954</td><td class="n">10.3336</td><td class="n">10.3061</td></tr>
+    <tr><td><code>volatile auto t = …</code></td><td class="n">10.2826</td><td class="n">10.3161</td><td class="n">10.2733</td><td class="n">10.6237</td><td class="n">10.2979</td></tr>
+  </table>
+  <p style="font-size:13px;color:var(--dim2);font-family:var(--mono);margin-top:-8px">单位 ms，Apple clang 17 / -O2。同样的表在 Apple clang 21 和 Homebrew clang 20 上重跑，结论一致。</p>
+  </div>
+
+  <div class="finding">
+    <div class="tag">结论</div>
+    <p>六种写法全部在同一个噪声带里。<code>const auto&amp;</code> 绑定临时量（生命周期延长）也正常工作。</p>
+  </div>
+</div>
+</section>
+
+<!-- ===================== 07 ===================== -->
+<section id="real">
+<div class="wrap">
+  <div class="num">07</div>
+  <h2>那半小时到底撞见了什么<span class="en">What Actually Breaks Benchmarks</span></h2>
+
+  <p>「测出来的 performance 不对」是个真问题，只是原因不在 <code>const</code> 上。
+  下面五个都是我在<strong>同一台机器上真实复现出来</strong>的、能造成这种症状的原因，按可能性排序。</p>
+
+  <h3>A · 死代码消除：被测代码整段被删掉</h3>
+
+  <p>如果被测函数的返回值没人用，<code>-O2</code> 会把它整个删掉。测出来是 0，然后你会觉得计时器坏了。</p>
+
+<pre><span class="c">-O2，500 万次 sin 调用：</span>
+auto       + 丢弃返回值 :  <span class="r">   0.0000 ms</span>   &lt;-- 循环被整段删除
+const auto + 丢弃返回值 :  <span class="r">   0.0000 ms</span>   &lt;-- 同样被删除
+auto       + volatile   :     27.7323 ms
+const auto + volatile   :     28.0530 ms</pre>
+
+  <p><strong>注意两种写法都是 0。</strong>但这里有个非常容易骗到人的陷阱：改代码时哪怕只是把
+  <code>const auto</code> 改成 <code>auto</code>，如果顺手动了别的东西——多打了一行 print、
+  多存了一个中间变量、把结果传给了某个函数——就可能刚好挡住了 DCE。
+  于是现象变成「改掉 const 就对了」，而真正起作用的是那个顺手的改动。这是最典型的假因果。</p>
+
+  <h3>B · 冷启动：第一次测量普遍高 2.5–3.5 倍</h3>
+
+  <p>刚编译出来的二进制，进程内的<em>第一次</em>测量会明显偏高（页错误、dyld 惰性绑定、缓存冷）。
+  在 12 组编译配置里 <strong>12/12 全部命中</strong>：</p>
+
+<pre><span class="c">每组配置里的第一次测量  vs  同组稳态值（单位 ms）</span>
+ 1) 34.7100   9) 38.4640      稳态区间: 10.3 – 16.1
+ 2) 38.5490  10) 29.7700
+ 3) 34.6590  11) 28.8190      <span class="hl">首次测量: 28.8 – 42.8</span>
+ 4) 31.9880  12) 31.4600
+ 5) 33.2860                   <span class="hl">倍率: 2.5x – 3.5x</span>
+ 6) 42.8050
+ 7) 29.3850
+ 8) 31.0760</pre>
+
+  <p>关键在于：<strong>独立的 <code>clock_gettime</code> 参照物也同步偏高</strong>，
+  说明这是真的慢了，不是 chrono 测错了。只要 A/B 两个版本在程序里有先后顺序，
+  先跑的那个就会背上这笔冷启动成本——而「先跑的那个」往往就是你先写的那个版本。
+  加上 warmup 之后，两者差异回到 0.5% 以内。</p>
+
+  <h3>C · <code>static const auto</code>：唯一一个「加 const 就真的错」的写法</h3>
+
+  <p>这是我在整轮实验里找到的、唯一能同时解释「加 const 出错」和「去掉 const 就好」的写法。
+  <code>static</code> 局部变量只在<em>第一次</em>执行到那一行时初始化：</p>
+
+<pre>static const auto t0 = Clock::now();   <span class="c">// 只在首次调用时采样！</span>
+work(n);
+static const auto t1 = Clock::now();   <span class="c">// 同上</span>
+
+<span class="c">同一个函数连调 3 次：</span>
+  第 1 次调用:    10.5903 ms
+  第 2 次调用:    <span class="r">10.5903 ms</span>   &lt;-- 时间点没有重新采样
+  第 3 次调用:    <span class="r">10.5903 ms</span>   &lt;-- 永远返回第一次的结果</pre>
+
+  <p>如果他的代码是这个形状，那「改掉 const 就好了」是<strong>真的</strong>——因为
+  <code>static auto</code> 同样会有这个问题，但很多人在删 <code>const</code> 的时候会把
+  <code>static</code> 一起删掉。原因是 C++ 的 <code>static</code> 存储期规则，不是编译器 bug，
+  也和常量折叠无关。</p>
+
+  <h3>D · 命名空间作用域的 const：C++ 里 const 唯一真正改变语义的地方</h3>
+
+  <p>在命名空间作用域，<code>const</code> 会给变量<strong>内部链接</strong>——放进头文件被多个 TU 包含时，
+  每个 TU 各持一份自己的拷贝；而去掉 <code>const</code> 会变成重复定义的链接错误，逼你改写法。
+  实测数值本身正确（都是程序启动时刻，不是 main 开始时刻），但多 TU 场景下语义会变。</p>
+
+<pre>  距 const auto 全局量:   208.21 ms
+  距       auto 全局量:   208.20 ms
+  <span class="c">// 数值都对，但 const 版是内部链接</span></pre>
+
+  <h3>E · 选错了时钟</h3>
+
+  <p><code>system_clock</code> 的 <code>is_steady = 0</code>——NTP 校时会让它跳变甚至倒退，不该用来做 benchmark。
+  本机实测确认 <code>high_resolution_clock</code> 就是 <code>steady_clock</code>（不是 <code>system_clock</code>），
+  所以在 macOS 上用它计时没问题。</p>
+
+  <div class="tw">
+  <table>
+    <tr><th>clock</th><th>period</th><th>is_steady</th><th>身份</th></tr>
+    <tr><td>system_clock</td><td>1 µs</td><td class="no">0（会跳变）</td><td>墙上时间</td></tr>
+    <tr><td>steady_clock</td><td>1 ns</td><td class="ok">1</td><td>单调时钟</td></tr>
+    <tr><td>high_resolution_clock</td><td>1 ns</td><td class="ok">1</td><td class="hl">= steady_clock</td></tr>
+  </table>
+  </div>
+</div>
+</section>
+
+<!-- ===================== 08 ===================== -->
+<section id="rebuttal">
+<div class="wrap">
+  <div class="num">08</div>
+  <h2>预判反驳<span class="en">Anticipated Objections</span></h2>
+
+  <details open>
+    <summary>「你的编译器版本和我的不一样。」</summary>
+    <div class="answer">
+      <p>测了三套：Apple clang <strong>17.0.0</strong>（Xcode 26.3）、Apple clang <strong>21.0.0</strong>（Command Line Tools）、
+      Homebrew 上游 LLVM <strong>20.1.5</strong>。前两个是 Apple 分支，第三个和 Apple 分支血缘独立。
+      三套的汇编对照结果一致。</p>
+      <p>更关键的是：如果这真是某个版本的代码生成 bug，那么另外两个版本不可能生成<em>字节相同</em>的正确代码。
+      而且第 04 节的证伪根本不依赖版本——<code>now()</code> 不是 <code>constexpr</code> 是标准库的声明写死的。</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>「也许要开 LTO / -Ofast 才会出现？」</summary>
+    <div class="answer">
+      <p>测了 <code>-Ofast</code>、<code>-O3 -flto</code>、<code>-O3 -mcpu=native</code>、
+      <code>-Ofast -flto -mcpu=native</code>。全部无差异，且 chrono 读数与独立参照物依然吻合到小数点后三位。</p>
+      <p>另外 LTO 也帮不上忙：<code>now()</code> 的实现体在 <code>libc++.dylib</code> 这个预编译动态库里，
+      LTO 看不进去。</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>「也许不是折叠，是 CSE 把两次 now() 合并成一次了？」</summary>
+    <div class="answer">
+      <p>这是个比原论断更合理的猜测，但同样不成立。编译器要合并两次调用，必须知道这个函数是
+      pure/const（无副作用且相同输入必返回相同输出）。<code>steady_clock::now()</code> <strong>没有</strong>
+      任何这类属性标注，在目标文件里就是一个 <code>U</code> 的不透明外部符号。</p>
+      <p>而且这一点在 IR 里是直接可见的：第 03 节的 IR 里，<strong>两次 <code>tail call now()</code> 都完好保留</strong>，
+      一次都没被合并。两个版本都是如此。</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>「constant folding 明明是真实存在的优化。」</summary>
+    <div class="answer">
+      <p>当然存在，而且很常见。但它的适用前提是<strong>常量表达式</strong>。
+      <code>now()</code> 是个运行期读硬件计时器的外部函数调用，不满足前提。</p>
+      <p>把 <code>const</code>（我不通过这个名字改它）和 <code>constexpr</code>（这个值编译期已知）混为一谈，
+      是这个论断的核心误解。前者不会、也不能触发常量折叠。</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>「const 不是能让编译器更激进地优化吗？」</summary>
+    <div class="answer">
+      <p>对<strong>局部变量</strong>而言，基本不能。优化器手里有整个函数体，它自己就能看出这个变量有没有被修改过——
+      你写不写 <code>const</code>，它掌握的信息量一样。<code>const</code> 主要是给<em>人</em>和<em>类型检查</em>看的。</p>
+      <p>而且 <code>auto</code> 的推导规则会丢弃顶层 <code>const</code>，两种写法推导出的类型同为
+      <code>time_point</code>，只是一个多了顶层 cv 限定符。这正是 IR 完全相同的原因。</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>「你没测我用的那个 clock。」</summary>
+    <div class="answer">
+      <p>本机可用的三个标准时钟全测了。C++20 的 <code>utc_clock</code> / <code>tai_clock</code> /
+      <code>gps_clock</code> / <code>file_clock</code> 在这台机器上的 Apple libc++ 里没有开放
+      （<code>__cpp_lib_chrono = 201611</code>），所以确实没测到。</p>
+      <p>但它们都建立在 <code>system_clock::now()</code> 之上，同样不是 <code>constexpr</code>。
+      更重要的是第 02–04 节的论证是<em>结构性</em>的——「<code>const</code> 不影响代码生成」和
+      「<code>now()</code> 不可折叠」这两条与具体是哪个 clock 无关。</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>「你是 Apple Silicon，我是 Intel Mac。」</summary>
+    <div class="answer">
+      <p>补了一组 <code>-arch x86_64</code> 的 Rosetta 交叉验证（<code>file</code> 确认产物是
+      <code>Mach-O 64-bit executable x86_64</code>），结果同样无差异，chrono 与独立参照物吻合。</p>
+      <p>这不等同于原生 Intel 硬件，是这份报告的一个真实边界。但第 04 节的证伪与架构无关。</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>「你终究没跑我的那段代码。」</summary>
+    <div class="answer">
+      <p><strong>这条成立</strong>，是这份报告唯一真实的开口。我复现的是论断所描述的形状，不是原始代码本身。</p>
+      <p>但即便原始代码里真的存在一个 bug，本报告已经独立证明了：<strong>它的原因不会是常量折叠</strong>（第 04 节），
+      <strong>也不会是 <code>const</code> 改变了代码生成</strong>（第 02、03 节）。第 07 节列了五个更可能的方向，
+      其中 C（<code>static const auto</code>）能同时解释「加 const 出错」和「去掉 const 就好」这两个现象。</p>
+      <p>把那段代码贴出来，我在同一台机器上照跑，有结果就更新这份报告。</p>
+    </div>
+  </details>
+</div>
+</section>
+
+<!-- ===================== 09 ===================== -->
+<section id="repro">
+<div class="wrap">
+  <div class="num">09</div>
+  <h2>复现方式<span class="en">Reproduce It Yourself</span></h2>
+
+  <p>最快的一条——证伪常量折叠假说，10 秒，不需要跑任何 benchmark：</p>
+
+<pre><span class="c">$ echo '#include &lt;chrono&gt;
+constexpr auto t = std::chrono::steady_clock::now();' | clang++ -std=c++23 -x c++ -c - -o /dev/null</span>
+
+<span class="r">error: constexpr variable 't' must be initialized by a constant expression</span>
+<span class="b">note: non-constexpr function 'now' cannot be used in a constant expression</span></pre>
+
+  <p>完整实验的全部源码和原始输出：</p>
+
+  <div class="dl">
+    <a href="src/test3_asm.cpp">test3_asm.cpp · 汇编/IR 对照</a>
+    <a href="src/test5_constexpr.cpp">test5_constexpr.cpp · 折叠证伪</a>
+    <a href="src/test2_measure.cpp">test2_measure.cpp · 参照物测量</a>
+    <a href="src/test12_stats.cpp">test12_stats.cpp · 200 轮统计</a>
+    <a href="src/test9_variants.cpp">test9_variants.cpp · 写法变体</a>
+    <a href="src/test4_dce.cpp">test4_dce.cpp · DCE 陷阱</a>
+    <a href="src/test10_namespace.cpp">test10_namespace.cpp · 命名空间 const</a>
+    <a href="src/test1_value.cpp">test1_value.cpp · 原始数值单调性</a>
+    <a href="src/test8_order.cpp">test8_order.cpp · 顺序调换</a>
+    <a href="src/test11_allclocks.cpp">test11_allclocks.cpp · 全时钟覆盖</a>
+  </div>
+  <div class="dl">
+    <a href="src/run.sh">run.sh</a>
+    <a href="src/run2.sh">run2.sh</a>
+    <a href="src/run3.sh">run3.sh</a>
+    <a href="src/run4.sh">run4.sh</a>
+    <a href="raw/full-matrix.txt">原始输出 · 12 组编译配置全矩阵</a>
+    <a href="raw/variants-and-toolchains.txt">原始输出 · 变体与工具链对照</a>
+  </div>
+
+  <div class="note">
+    <p>把 <code>src/</code> 下的文件放进同一个目录，<code>bash run.sh</code> 即可复现全矩阵。
+    脚本会自己遍历 4 个优化级别 × 3 个语言标准。</p>
+  </div>
+</div>
+</section>
+
+<footer>
+<div class="wrap">
+  <p style="max-width:74ch">
+    <strong>总结：</strong>三个命题里，P3（常量折叠）可以用一行代码直接证伪；
+    P1 和 P2 在 12 组编译配置、三套编译器、两种 CPU 架构、816 对配对测量下均未复现，
+    且编译器对两种写法产出的机器码与 LLVM IR <em>逐字节相同</em>。
+    「测出来的 performance 不对」很可能是真的，但原因在别处——最可能是死代码消除、冷启动，
+    或者 <code>static const auto</code>。
+  </p>
+  <p style="margin-top:26px;font-family:var(--mono);font-size:12px;color:var(--dim2)">
+    实验于 2026-08-16 在 MacBookPro18,2 / Apple M1 Max / macOS 26.5.2 上执行 ·
+    所有数字均为实测，无一条来自推断
+  </p>
+</div>
+</footer>
+
+<script>
+const bar=document.getElementById('bar');
+const links=[...document.querySelectorAll('#toc a')];
+const secs=links.map(a=>document.querySelector(a.getAttribute('href')));
+function tick(){
+  const h=document.documentElement;
+  bar.style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%';
+  let cur=0;
+  secs.forEach((s,i)=>{ if(s && s.getBoundingClientRect().top<180) cur=i; });
+  links.forEach((a,i)=>a.classList.toggle('on',i===cur));
+}
+addEventListener('scroll',tick,{passive:true});tick();
+</script>
+</body>
+</html>

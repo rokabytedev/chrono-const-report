@@ -1,0 +1,101 @@
+############ 环境细节 ############
+Apple clang version 17.0.0 (clang-1700.6.4.2)
+Target: arm64-apple-darwin25.5.0
+Thread model: posix
+InstalledDir: /Applications/Xcode-26.3.0.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin
+--- 使用的 SDK ---
+ "/Applications/Xcode-26.3.0.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang" -cc1 -triple arm64-apple-macosx26.0.0 -Wundef-prefix=TARGET_OS_ -Wdeprecated-objc-isa-usage -Werror=deprecated-objc-isa-usage -Werror=implicit-function-declaration -E -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name null -mrelocation-model pic -pic-level 2 -mframe-pointer=non-leaf -fno-strict-return -ffp-contract=on -fno-rounding-math -funwind-tables=1 -fobjc-msgsend-selector-stubs -target-sdk-version=26.5 -fvisibility-inlines-hidden-static-local-var -fdefine-target-os-macros -fno-assume-unique-vtables -fno-modulemap-allow-subdirectory-search -target-cpu apple-m1 -target-feature +zcm -target-feature +zcz -target-feature +v8.5a -target-feature +aes -target-feature +altnzcv -target-feature +ccdp -target-feature +complxnum -target-feature +crc -target-feature +dotprod -target-feature +fp-armv8 -target-feature +fp16fml -target-feature +fptoint -target-feature +fullfp16 -target-feature +jsconv -target-feature +lse -target-feature +neon -target-feature +pauth -target-feature +perfmon -target-feature +predres -target-feature +ras -target-feature +rcpc -target-feature +rdm -target-feature +sb -target-feature +sha2 -target-feature +sha3 -target-feature +specrestrict -target-feature +ssbs -target-abi darwinpcs -debugger-tuning=lldb -fdebug-compilation-dir=/tmp/chrono-const-test -target-linker-version 1230.1 -v -fcoverage-compilation-dir=/tmp/chrono-const-test -resource-dir /Applications/Xcode-26.3.0.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -I/usr/local/include -internal-isystem /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1 -internal-isystem /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/local/include -internal-isystem /Applications/Xcode-26.3.0.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include -internal-externc-isystem /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include -internal-externc-isystem /Applications/Xcode-26.3.0.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include -internal-iframework /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks -internal-iframework /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/SubFrameworks -internal-iframework /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/Library/Frameworks -Wno-reorder-init-list -Wno-implicit-int-float-conversion -Wno-c99-designator -Wno-final-dtor-non-final-class -Wno-extra-semi-stmt -Wno-misleading-indentation -Wno-quoted-include-in-framework-header -Wno-implicit-fallthrough -Wno-enum-enum-conversion -Wno-enum-float-conversion -Wno-elaborated-enum-base -std=c++20 -fdeprecated-macro -ferror-limit 19 -stack-protector 1 -fstack-check -mdarwin-stkchk-strong-link -fblocks -fencode-extended-block-signature -fregister-global-dtors-with-atexit -fgnuc-version=4.2.1 -fno-cxx-modules -fno-implicit-modules -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -fmax-type-align=16 -fcommon -clang-vendor-feature=+disableNonDependentMemberExprInCurrentInstantiation -fno-odr-hash-protocols -clang-vendor-feature=+enableAggressiveVLAFolding -clang-vendor-feature=+revert09abecef7bbf -clang-vendor-feature=+thisNoAlignAttr -clang-vendor-feature=+thisNoNullAttr -clang-vendor-feature=+disableAtImportPrivateFrameworkInImplementationError -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o - -x c++ /dev/null
+ignoring nonexistent directory "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/local/include"
+ignoring nonexistent directory "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/Library/Frameworks"
+ /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1
+ /Applications/Xcode-26.3.0.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include
+ /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include
+ /Applications/Xcode-26.3.0.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include
+ /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks (framework directory)
+--- libc++ 版本 ---
+_LIBCPP_VERSION = 210106
+
+############ 实验 11：LLVM IR 层面对照 (-O2) ############
+非 const 版 IR:
+define i64 @_Z16FN() local_unnamed_addr #0 {
+  %N = tail call i64 @_ZNSt3__16chrono12steady_clock3nowEv() #3
+  tail call void @_Z4workv()
+  %N = tail call i64 @_ZNSt3__16chrono12steady_clock3nowEv() #3
+  %N = sub nsw i64 %N, %N
+  ret i64 %N
+}
+const 版 IR:
+define i64 @_Z13FN() local_unnamed_addr #0 {
+  %N = tail call i64 @_ZNSt3__16chrono12steady_clock3nowEv() #3
+  tail call void @_Z4workv()
+  %N = tail call i64 @_ZNSt3__16chrono12steady_clock3nowEv() #3
+  %N = sub nsw i64 %N, %N
+  ret i64 %N
+}
+>>> IR 有差异 !!!
+1c1
+< define i64 @_Z16FN() local_unnamed_addr #0 {
+---
+> define i64 @_Z13FN() local_unnamed_addr #0 {
+
+############ 实验 12：now() 在二进制里是不是外部符号 ############
+--- test3.o 中与 now 相关的符号 (U = undefined，即编译器看不见的外部调用) ---
+                 U std::__1::chrono::steady_clock::now()
+
+############ 实验 9：写法变体 ############
+=== 实验 9：写法变体对照（各 5 轮，单位 ms）===
+写法                       r1       r2       r3       r4       r5
+auto                    10.3658  10.5269  10.5455  10.3835  10.6267
+const auto              10.6197  10.4242  10.7830  10.7027  10.3456
+auto const              10.5848  10.6844  10.8179  10.4926  10.5246
+const auto&             10.3794  10.2852  10.3049  10.2720  10.3208
+auto&&                  10.3050  10.2592  10.2954  10.3336  10.3061
+volatile auto           10.2826  10.3161  10.2733  10.6237  10.2979
+
+=== static const auto 的陷阱（同一函数连调 3 次）===
+  第 1 次调用:    10.5903 ms  
+  第 2 次调用:    10.5903 ms  <-- 时间点没有重新采样，结果失真
+  第 3 次调用:    10.5903 ms  <-- 时间点没有重新采样，结果失真
+
+############ 实验 10：命名空间作用域 ############
+=== 实验 10：命名空间作用域 ===
+  距 const auto 全局量:   208.21 ms
+  距       auto 全局量:   208.20 ms
+  注: 两者都是【程序启动时刻】，不是 main 开始时刻。差异来自 const 的内部链接，
+      而不是数值错误 —— 放进头文件被多个 TU 包含时，每个 TU 会各有一份拷贝。
+
+############ 实验 13：x86_64 (Rosetta) 交叉验证 ############
+t2x: Mach-O 64-bit executable x86_64
+=== 实验 2b：计算负载 + clock_gettime 独立参照 ===
+system_clock            auto=  49.3570 ms (ref   49.3590)   const auto=  27.0550 ms (ref   27.0570)
+steady_clock            auto=  26.1059 ms (ref   26.1090)   const auto=  26.2531 ms (ref   26.2550)
+high_resolution_clock   auto=  25.7013 ms (ref   25.7030)   const auto=  26.1025 ms (ref   26.1040)
+
+
+############ 实验 14：另一套 clang（Command Line Tools）对照 ############
+--- /usr/bin/clang++ ---
+Apple clang version 17.0.0 (clang-1700.6.4.2)
+    汇编对照: 完全相同 (IDENTICAL)
+=== 实验 9：写法变体对照（各 5 轮，单位 ms）===
+写法                       r1       r2       r3       r4       r5
+auto                    10.5694  10.3492  10.6806  10.4927  10.4935
+const auto              10.4249  10.4214  10.6428  10.5866  10.5329
+auto const              10.6768  10.7357  10.3828  10.4452  10.4788
+const auto&             10.5702  10.4241  10.5866  10.7105  10.7095
+auto&&                  10.7393  10.6809  10.5262  10.6185  10.6395
+volatile auto           10.6224  10.3664  10.5620  10.4190  10.3214
+
+--- /Library/Developer/CommandLineTools/usr/bin/clang++ ---
+Apple clang version 21.0.0 (clang-2100.1.1.101)
+--- /opt/homebrew/opt/llvm/bin/clang++ ---
+Homebrew clang version 20.1.5
+    汇编对照: 完全相同 (IDENTICAL)
+=== 实验 9：写法变体对照（各 5 轮，单位 ms）===
+写法                       r1       r2       r3       r4       r5
+auto                    10.5390  10.3112  10.5264  10.6420  10.3944
+const auto              10.2704  10.2800  10.3072  10.5407  10.2975
+auto const              10.2964  10.3000  10.2907  10.2955  10.3088
+const auto&             10.3069  10.2835  10.3140  10.3400  10.3597
+auto&&                  10.2785  10.5450  10.4725  10.4500  10.5566
+volatile auto           10.3276  10.6158  10.4580  10.3500  10.4226
+

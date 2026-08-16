@@ -1,0 +1,9 @@
+node_modules/
+.vercel/
+.DS_Store
+*.o
+*.s
+*.ll
+a.out
+t[0-9]*
+.vercel
